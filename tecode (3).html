@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Tecode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&family=Jost:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#07090f;font-family:'Jost',sans-serif;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#252a3d;border-radius:2px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px #4facfe20}50%{box-shadow:0 0 40px #4facfe40}}
+@keyframes ring{0%{transform:scale(1);opacity:1}100%{transform:scale(1.4);opacity:0}}
+input,textarea,select{font-family:'Jost',sans-serif}
+button{font-family:'Oxanium',monospace}
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+
+/* ── SEED DATA ── */
+const INIT_USERS=[
+  {id:"owner",username:"owner",displayName:"te-code-owner",password:"owner123",bio:"Platform administrator.",banner:"g0",pic:null,isAdmin:true,online:true},
+  {id:"alice",username:"alice",displayName:"Alice Chen",password:"pass",bio:"Designer & dreamer ✨",banner:"g1",pic:null,isAdmin:false,online:true},
+  {id:"bob",username:"bob",displayName:"Bob Silva",password:"pass",bio:"Code & coffee ☕",banner:null,pic:null,isAdmin:false,online:false},
+  {id:"carol",username:"carol",displayName:"Carol K.",password:"pass",bio:"Just vibing 🎵",banner:null,pic:null,isAdmin:false,online:true},
+];
+const AI_BOT={id:"__ai__",username:"tecode-ai",displayName:"Tecode AI",bio:"Your intelligent AI companion. Ask me anything!",pic:null,online:true,isAI:true,isAdmin:false,banner:"g2"};
+const INIT_FRIENDS=[["alice","bob"],["alice","carol"]];
+const INIT_MSGS={"alice||bob":[
+  {id:"m1",from:"bob",text:"Hey! Welcome to Tecode 🚀",ts:Date.now()-7200e3,seen:true,reply:null,incog:false,selfD:false},
+  {id:"m2",from:"alice",text:"This is amazing! Love the design ❤️",ts:Date.now()-7100e3,seen:true,reply:null,incog:false,selfD:false},
+]};
+const GRADS=["linear-gradient(135deg,#0f2027,#203a43,#2c5364)","linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)","linear-gradient(135deg,#4facfe,#00f2fe)","linear-gradient(135deg,#43e97b,#38f9d7)","linear-gradient(135deg,#fa709a,#fee140)","linear-gradient(135deg,#a18cd1,#fbc2eb)","linear-gradient(135deg,#f093fb,#f5576c)","linear-gradient(135deg,#30cfd0,#330867)"];
+const AV_G=["linear-gradient(135deg,#4facfe,#00f2fe)","linear-gradient(135deg,#f093fb,#f5576c)","linear-gradient(135deg,#43e97b,#38f9d7)","linear-gradient(135deg,#fa709a,#fee140)","linear-gradient(135deg,#667eea,#764ba2)","linear-gradient(135deg,#30cfd0,#330867)"];
+
+/* ── UTILS ── */
+const cid=(a,b)=>[a,b].sort().join("||");
+const tfmt=t=>{const d=new Date(t),n=new Date();return d.toDateString()===n.toDateString()?d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}):d.toLocaleDateString([],{month:"short",day:"numeric"});};
+const avGr=id=>AV_G[(id||"x").charCodeAt(0)%AV_G.length];
+const bnr=(key,img)=>img?`url(${img}) center/cover no-repeat`:key?.startsWith("g")?GRADS[parseInt(key.slice(1))%GRADS.length]:key||"linear-gradient(135deg,#1a1d26,#0f1219)";
+const cdLeft=(cds,from,to)=>{const c=cds.find(x=>x.from===from&&x.to===to);return c?Math.max(0,Math.ceil((c.until-Date.now())/1000)):0;};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+/* ── AVATAR ── */
+function Av({user,size=36,sx={}}){
+  if(!user)return React.createElement("div",{style:{width:size,height:size,borderRadius:"50%",background:"#1e2535",flexShrink:0,...sx}});
+  if(user.id==="__ai__")return React.createElement("div",{style:{width:size,height:size,borderRadius:"50%",background:"linear-gradient(135deg,#4facfe,#00f2fe)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.42,flexShrink:0,...sx}},"✦");
+  const init=(user.displayName||user.username||"?")[0].toUpperCase();
+  if(user.pic)return React.createElement("img",{src:user.pic,style:{width:size,height:size,borderRadius:"50%",objectFit:"cover",flexShrink:0,...sx}});
+  return React.createElement("div",{style:{width:size,height:size,borderRadius:"50%",background:avGr(user.id),display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*.38,color:"#fff",fontFamily:"Oxanium,monospace",fontWeight:700,flexShrink:0,...sx}},init);
+}
+
+/* ── DOT ── */
+const Dot=({on,sx={}})=>React.createElement("div",{style:{width:10,height:10,borderRadius:"50%",background:on?"#2ed573":"#444",flexShrink:0,...sx}});
+
+/* ── BTN ── */
+function Btn({children,onClick,v="primary",sm,full,sx={}}){
+  const base={border:"none",borderRadius:8,cursor:"pointer",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:sm?12:14,padding:sm?"6px 12px":"11px 22px",transition:"all .18s",display:"inline-flex",alignItems:"center",gap:6,justifyContent:"center",width:full?"100%":"auto",...sx};
+  const vs={primary:{background:"linear-gradient(135deg,#4facfe,#00f2fe)",color:"#07090f"},ghost:{background:"transparent",color:"#4facfe",border:"1px solid #4facfe40"},danger:{background:"#ff475718",color:"#ff6b7a",border:"1px solid #ff475740"},success:{background:"#2ed57318",color:"#2ed573",border:"1px solid #2ed57340"},muted:{background:"#1e2535",color:"#7a8499"},pink:{background:"linear-gradient(135deg,#ff85c2,#ff69b4)",color:"#fff"},pinkg:{background:"transparent",color:"#ff69b4",border:"1px solid #ff69b440"}};
+  const [hover,setHover]=useState(false);
+  return React.createElement("button",{onClick,style:{...base,...vs[v],opacity:hover?.85:1,transform:hover?"translateY(-1px)":"none"},onMouseEnter:()=>setHover(true),onMouseLeave:()=>setHover(false)},children);
+}
+
+/* ── FIELD ── */
+function Field({label,value,onChange,type="text",placeholder="",onEnter,sx={}}){
+  const [foc,setFoc]=useState(false);
+  const bdr=foc?"#4facfe":"#252a3d";
+  if(type==="file")return React.createElement("div",{style:{marginBottom:14,...sx}},
+    label&&React.createElement("div",{style:{fontSize:12,color:"#6b7299",marginBottom:6}},label),
+    React.createElement("input",{type:"file",accept:"image/*",onChange:e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>onChange(ev.target.result);r.readAsDataURL(f);}},style:{color:"#6b7299",fontSize:13,width:"100%"}})
+  );
+  if(type==="textarea")return React.createElement("div",{style:{marginBottom:14,...sx}},
+    label&&React.createElement("div",{style:{fontSize:12,color:"#6b7299",marginBottom:6}},label),
+    React.createElement("textarea",{value:value||"",placeholder,onChange:e=>onChange(e.target.value),rows:3,onFocus:()=>setFoc(true),onBlur:()=>setFoc(false),style:{width:"100%",padding:"11px 14px",background:"#07090f",border:`1px solid ${bdr}`,borderRadius:8,color:"#e8eaf0",fontSize:14,outline:"none",resize:"vertical",boxSizing:"border-box",transition:"border-color .2s"}})
+  );
+  return React.createElement("div",{style:{marginBottom:14,...sx}},
+    label&&React.createElement("div",{style:{fontSize:12,color:"#6b7299",marginBottom:6}},label),
+    React.createElement("input",{type,value:value||"",placeholder,onChange:e=>onChange(e.target.value),onKeyDown:e=>e.key==="Enter"&&onEnter&&onEnter(),onFocus:()=>setFoc(true),onBlur:()=>setFoc(false),style:{width:"100%",padding:"11px 14px",background:"#07090f",border:`1px solid ${bdr}`,borderRadius:8,color:"#e8eaf0",fontSize:14,outline:"none",boxSizing:"border-box",transition:"border-color .2s"}})
+  );
+}
+
+/* ── TOAST ── */
+function Toast({msg,type}){
+  const c={info:"#4facfe",success:"#2ed573",warn:"#ffa502",error:"#ff4757"}[type]||"#4facfe";
+  return React.createElement("div",{style:{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#161c28",border:`1px solid ${c}50`,borderRadius:12,padding:"12px 20px",color:c,fontSize:13,zIndex:9999,display:"flex",alignItems:"center",gap:8,maxWidth:"90vw",boxShadow:`0 8px 32px #00000080`,animation:"fadeIn .2s",whiteSpace:"nowrap"}},
+    React.createElement("span",null,{success:"✓",warn:"⚠",error:"✕",info:"ℹ"}[type]||"ℹ"),msg
+  );
+}
+
+/* ══════════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════════ */
+function TeCode(){
+  const [view,setView]=useState("login");
+  const [me,setMe]=useState(null);
+  const [lf,setLf]=useState({u:"",p:""});
+  const [sf,setSf]=useState({u:"",dn:"",p:"",pic:null});
+  const [aErr,setAErr]=useState("");
+  const [users,setUsers]=useState(INIT_USERS);
+  const [friends,setFriends]=useState(INIT_FRIENDS);
+  const [reqs,setReqs]=useState([]);
+  const [cds,setCds]=useState([]);
+  const [msgs,setMsgs]=useState(INIT_MSGS);
+  const [bans,setBans]=useState([]);
+  const [sidebar,setSidebar]=useState(false);
+  const [dashTab,setDashTab]=useState("friends");
+  const [chatPeer,setChatPeer]=useState(null);
+  const [incog,setIncog]=useState(false);
+  const [input,setInput]=useState("");
+  const [replyTo,setReplyTo]=useState(null);
+  const [callUI,setCallUI]=useState(null);
+  const [callSec,setCallSec]=useState(0);
+  const [callMuted,setCallMuted]=useState(false);
+  const [callCamOff,setCallCamOff]=useState(false);
+  const [callStream,setCallStream]=useState(null);
+  const [incomingCall,setIncomingCall]=useState(null);
+  const callRingRef=useRef(null);
+  const callTimerRef=useRef(null);
+  const [uSearch,setUSearch]=useState("");
+  const [adSearch,setAdSearch]=useState("");
+  const [adminTab,setAdminTab]=useState("users");
+  const [profEdit,setProfEdit]=useState(null);
+  const [viewProf,setViewProf]=useState(null);
+  const [aiLoad,setAiLoad]=useState(false);
+  const [banForm,setBanForm]=useState({uid:"",dur:"perm",reason:""});
+  const [addAdmF,setAddAdmF]=useState({u:"",dn:"",p:""});
+  const [toast,setToast]=useState(null);
+  const msgEnd=useRef(null);
+
+  /* ── STATUS STATE ── */
+  const [statuses,setStatuses]=useState([
+    {id:"st1",userId:"alice",media:"https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400",mediaType:"image",text:"",textX:50,textY:80,textColor:"#ffffff",textSize:22,ts:Date.now()-3600000,seenBy:[]},
+    {id:"st2",userId:"bob",media:"https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400",mediaType:"image",text:"Beautiful evening ✨",textX:50,textY:20,textColor:"#ffffff",textSize:20,ts:Date.now()-7200000,seenBy:[]},
+  ]);
+  const [statusView,setStatusView]=useState(null);
+  const [statusUpload,setStatusUpload]=useState(false);
+  const [upMedia,setUpMedia]=useState(null);
+  const [upMediaType,setUpMediaType]=useState("image");
+  const [upText,setUpText]=useState("");
+  const [upTextX,setUpTextX]=useState(50);
+  const [upTextY,setUpTextY]=useState(50);
+  const [upTextColor,setUpTextColor]=useState("#ffffff");
+  const [upTextSize,setUpTextSize]=useState(22);
+  const [upDragging,setUpDragging]=useState(false);
+  const [statusTab,setStatusTab]=useState("view");
+  /* modal form state lifted to top level to prevent blinking */
+  const [mForm,setMForm]=useState({name:"",grad:"linear-gradient(135deg,#4facfe,#00f2fe)",code:"",catName:"",chName:"",chType:"text",roleName:"",roleColor:"#4facfe",desc:"",pub:undefined,catId:"",search:"",srvIcon:null});
+  /* pre-populate server-settings form when modal opens */
+  useEffect(()=>{
+    if(sModal==="server-settings"&&curSrv){
+      const s=servers.find(sv=>sv.id===curSrv);
+      if(s)setMForm(p=>({...p,name:s.name,desc:s.desc||"",grad:s.iconGrad,pub:s.isPublic,srvIcon:s.icon||null}));
+    } else if(!sModal){
+      setMForm({name:"",grad:"linear-gradient(135deg,#4facfe,#00f2fe)",code:"",catName:"",chName:"",chType:"text",roleName:"",roleColor:"#4facfe",desc:"",pub:undefined,catId:"",search:"",srvIcon:null});
+    }
+  },[sModal]);
+  /* ── SERVER STATE ── */
+  const INIT_SERVERS=[
+    {id:"s1",name:"Tecode HQ",icon:null,iconGrad:"linear-gradient(135deg,#4facfe,#00f2fe)",ownerId:"owner",desc:"Official Tecode community.",isPublic:true,
+     cats:[
+       {id:"c1",name:"INFORMATION",chs:[{id:"ch1",name:"announcements",type:"text",ro:true},{id:"ch2",name:"rules",type:"text",ro:true}]},
+       {id:"c2",name:"GENERAL",chs:[{id:"ch3",name:"general",type:"text",ro:false},{id:"ch4",name:"off-topic",type:"text",ro:false},{id:"ch5",name:"General Voice",type:"voice",ro:false}]},
+       {id:"c3",name:"GAMING",chs:[{id:"ch6",name:"gaming",type:"text",ro:false},{id:"ch7",name:"Game Room",type:"voice",ro:false}]},
+     ],
+     roles:[{id:"r1",name:"Admin",color:"#ffa502",perms:["all"]},{id:"r2",name:"Moderator",color:"#4facfe",perms:["kick","ban","manage"]},{id:"r3",name:"Member",color:"#6b7299",perms:["send","read"]}],
+     members:[{userId:"owner",roleId:"r1",nick:null,joined:Date.now()-864e5},{userId:"alice",roleId:"r3",nick:null,joined:Date.now()-72e5},{userId:"bob",roleId:"r3",nick:null,joined:Date.now()-36e5}],
+     invites:[{code:"tecode-hq",uses:12,maxUses:0,expires:null}],bans:[],
+    },
+    {id:"s2",name:"Dev Lounge",icon:null,iconGrad:"linear-gradient(135deg,#43e97b,#38f9d7)",ownerId:"alice",desc:"Developers hang out here.",isPublic:true,
+     cats:[
+       {id:"c4",name:"GENERAL",chs:[{id:"ch8",name:"general",type:"text",ro:false},{id:"ch9",name:"help",type:"text",ro:false},{id:"ch10",name:"Dev Voice",type:"voice",ro:false}]},
+       {id:"c5",name:"PROJECTS",chs:[{id:"ch11",name:"showcase",type:"text",ro:false},{id:"ch12",name:"feedback",type:"text",ro:false}]},
+     ],
+     roles:[{id:"r4",name:"Owner",color:"#ffa502",perms:["all"]},{id:"r5",name:"Dev",color:"#43e97b",perms:["send","read","manage"]},{id:"r6",name:"Member",color:"#6b7299",perms:["send","read"]}],
+     members:[{userId:"alice",roleId:"r4",nick:null,joined:Date.now()-864e5},{userId:"carol",roleId:"r6",nick:null,joined:Date.now()-36e5}],
+     invites:[{code:"dev-lounge",uses:5,maxUses:0,expires:null}],bans:[],
+    },
+  ];
+  const INIT_SM={"s1_ch3":[{id:"sm1",from:"owner",text:"Welcome to Tecode HQ! 🎉",ts:Date.now()-36e5,pinned:false,reactions:[{emoji:"🎉",users:["alice","bob"]},{emoji:"❤️",users:["alice"]}],reply:null},{id:"sm2",from:"alice",text:"Glad to be here! Loving Tecode.",ts:Date.now()-35e5,pinned:false,reactions:[],reply:null}],"s1_ch1":[{id:"sm3",from:"owner",text:"📢 Tecode v1.0 is officially live! Welcome everyone.",ts:Date.now()-72e5,pinned:true,reactions:[],reply:null}],"s2_ch8":[{id:"sm4",from:"alice",text:"Dev Lounge is open 🛠️ drop your projects!",ts:Date.now()-72e5,pinned:false,reactions:[{emoji:"🔥",users:["carol"]}],reply:null}]};
+  const [servers,setServers]=useState(INIT_SERVERS);
+  const [sMsgs,setSMsgs]=useState(INIT_SM);
+  const [curSrv,setCurSrv]=useState(null);
+  const [curCh,setCurCh]=useState(null);
+  const [sInput,setSInput]=useState("");
+  const [srvPanel,setSrvPanel]=useState("chat");
+  const [sModal,setSModal]=useState(null);
+  const [sReplyTo,setSReplyTo]=useState(null);
+  const [srvSidebar,setSrvSidebar]=useState(false);
+  const [membOpen,setMembOpen]=useState(true);
+  const [ctxMenu,setCtxMenu]=useState(null);
+  const sMsgEnd=useRef(null);
+  useEffect(()=>{sMsgEnd.current?.scrollIntoView({behavior:"smooth"});},[sMsgs,curCh]);
+
+  /* SERVER HELPERS */
+  const getSrv=id=>servers.find(s=>s.id===id);
+  const myServs=()=>servers.filter(s=>s.members.some(m=>m.userId===me?.id));
+  const srvRole=(s,uid_)=>s?.roles?.find(r=>r.id===s.members?.find(m=>m.userId===uid_)?.roleId);
+  const isOwner=s=>s.ownerId===me?.id;
+  const hasPerm=(s,p)=>{if(!s)return false;const r=srvRole(s,me?.id);if(!r)return false;return r.perms.includes("all")||r.perms.includes(p);};
+  const chKey=(sId,chId)=>sId+"_"+chId;
+  const sendSMsg=()=>{
+    if(!sInput.trim()||!curSrv||!curCh)return;
+    const s=getSrv(curSrv);if(!s)return;
+    const ch=s.cats.flatMap(c=>c.chs).find(c=>c.id===curCh);
+    if(ch?.ro&&!hasPerm(s,"all")){showT("This channel is read-only.","warn");return;}
+    const m={id:uid(),from:me.id,text:sInput,ts:Date.now(),pinned:false,reactions:[],reply:sReplyTo};
+    const key=chKey(curSrv,curCh);
+    setSMsgs(p=>({...p,[key]:[...(p[key]||[]),m]}));
+    setSInput("");setSReplyTo(null);
+  };
+  const toggleReact=(key,msgId,emoji)=>setSMsgs(p=>{const list=p[key]||[];return{...p,[key]:list.map(m=>{if(m.id!==msgId)return m;const ex=m.reactions.find(r=>r.emoji===emoji);if(ex){const has=ex.users.includes(me.id);return{...m,reactions:m.reactions.map(r=>r.emoji===emoji?{...r,users:has?r.users.filter(u=>u!==me.id):[...r.users,me.id]}:r)};}return{...m,reactions:[...m.reactions,{emoji,users:[me.id]}]};})};});
+  const pinMsg=(key,id)=>setSMsgs(p=>({...p,[key]:(p[key]||[]).map(m=>m.id===id?{...m,pinned:!m.pinned}:m)}));
+  const delMsg=(key,id)=>setSMsgs(p=>({...p,[key]:(p[key]||[]).filter(m=>m.id!==id)}));
+  const joinSrv=sId=>{const s=getSrv(sId);if(!s)return;if(s.members.find(m=>m.userId===me.id)){showT("Already a member!","info");return;}if(s.bans.includes(me.id)){showT("You are banned from this server.","error");return;}const dr=s.roles[s.roles.length-1];setServers(p=>p.map(sv=>sv.id===sId?{...sv,members:[...sv.members,{userId:me.id,roleId:dr.id,nick:null,joined:Date.now()}]}:sv));showT("Joined "+s.name+"!","success");};
+  const leaveSrv=sId=>{setServers(p=>p.map(sv=>sv.id===sId?{...sv,members:sv.members.filter(m=>m.userId!==me.id)}:sv));setCurSrv(null);setCurCh(null);setView("servers");showT("Left server.","info");};
+  const kickM=(sId,uid_)=>setServers(p=>p.map(sv=>sv.id===sId?{...sv,members:sv.members.filter(m=>m.userId!==uid_)}:sv));
+  const banM=(sId,uid_)=>setServers(p=>p.map(sv=>sv.id===sId?{...sv,members:sv.members.filter(m=>m.userId!==uid_),bans:[...sv.bans,uid_]}:sv));
+  const unbanM=(sId,uid_)=>setServers(p=>p.map(sv=>sv.id===sId?{...sv,bans:sv.bans.filter(b=>b!==uid_)}:sv));
+  const createSrv=(name,grad)=>{
+    const sid="s"+uid();const adminRid="r"+uid();const memRid="r"+uid();const catId="cat"+uid();const chId="ch"+uid();const chId2="ch"+uid();
+    const ns={id:sid,name,icon:null,iconGrad:grad||"linear-gradient(135deg,#4facfe,#00f2fe)",ownerId:me.id,desc:"",isPublic:false,
+      cats:[{id:catId,name:"GENERAL",chs:[{id:chId,name:"general",type:"text",ro:false},{id:chId2,name:"General Voice",type:"voice",ro:false}]}],
+      roles:[{id:adminRid,name:"Admin",color:"#ffa502",perms:["all"]},{id:memRid,name:"Member",color:"#6b7299",perms:["send","read"]}],
+      members:[{userId:me.id,roleId:adminRid,nick:null,joined:Date.now()}],
+      invites:[{code:name.toLowerCase().replace(/ /g,"-")+"-"+uid().slice(0,4),uses:0,maxUses:0,expires:null}],bans:[]};
+    setServers(p=>[...p,ns]);setCurSrv(sid);setCurCh(chId);setView("server");showT("Server created!","success");
+  };
+  const addCh=(sId,catId,name,type)=>{const ch={id:"ch"+uid(),name:name.toLowerCase().replace(/ /g,"-"),type,ro:false};setServers(p=>p.map(sv=>sv.id===sId?{...sv,cats:sv.cats.map(c=>c.id===catId?{...c,chs:[...c.chs,ch]}:c)}:sv));showT("Channel created!","success");};
+  const delCh=(sId,chId)=>{setServers(p=>p.map(sv=>sv.id===sId?{...sv,cats:sv.cats.map(c=>({...c,chs:c.chs.filter(ch=>ch.id!==chId)}))}:sv));if(curCh===chId)setCurCh(null);};
+  const addCat=(sId,name)=>{setServers(p=>p.map(sv=>sv.id===sId?{...sv,cats:[...sv.cats,{id:"cat"+uid(),name:name.toUpperCase(),chs:[]}]}:sv));showT("Category created!","success");};
+  const addRole=(sId,name,color)=>{setServers(p=>p.map(sv=>sv.id===sId?{...sv,roles:[...sv.roles,{id:"r"+uid(),name,color,perms:["send","read"]}]}:sv));showT("Role created!","success");};
+  const assignRole=(sId,uid_,rId)=>setServers(p=>p.map(sv=>sv.id===sId?{...sv,members:sv.members.map(m=>m.userId===uid_?{...m,roleId:rId}:m)}:sv));
+  const setNick=(sId,uid_,nick)=>setServers(p=>p.map(sv=>sv.id===sId?{...sv,members:sv.members.map(m=>m.userId===uid_?{...m,nick:nick||null}:m)}:sv));
+  const updateSrv=(sId,patch)=>setServers(p=>p.map(sv=>sv.id===sId?{...sv,...patch}:sv));
+
+
+  useEffect(()=>{const t=setInterval(()=>setCds(p=>p.filter(c=>c.until>Date.now())),500);return()=>clearInterval(t);},[]);
+  useEffect(()=>{msgEnd.current?.scrollIntoView({behavior:"smooth"});},[msgs,chatPeer,view]);
+  useEffect(()=>{if(toast){const t=setTimeout(()=>setToast(null),3000);return()=>clearTimeout(t);}},[toast]);
+  useEffect(()=>{
+    if(!callUI||callUI.state!=="active"){setCallSec(0);return;}
+    callTimerRef.current=setInterval(()=>setCallSec(p=>p+1),1000);
+    return()=>clearInterval(callTimerRef.current);
+  },[callUI?.state]);
+
+  /* stop stream on unmount */
+  useEffect(()=>()=>{callStream?.getTracks().forEach(t=>t.stop());},[callStream]);
+
+  /* ring sound using AudioContext - plays while calling/incoming */
+  useEffect(()=>{
+    if(!callUI||(callUI.state!=="calling"&&callUI.state!=="ringing"))return;
+    let ctx,osc,gain,stopped=false;
+    const ring=()=>{
+      try{
+        ctx=new(window.AudioContext||window.webkitAudioContext)();
+        gain=ctx.createGain();gain.gain.value=0.15;gain.connect(ctx.destination);
+        const play=()=>{if(stopped)return;osc=ctx.createOscillator();osc.type="sine";osc.frequency.value=440;osc.connect(gain);osc.start();setTimeout(()=>{if(!stopped){osc.stop();setTimeout(()=>{if(!stopped)play();},400);}},600);};
+        play();
+      }catch(e){}
+    };
+    ring();
+    return()=>{stopped=true;try{osc?.stop();ctx?.close();}catch(e){}};
+  },[callUI?.state]);
+
+  const getU=id=>id==="__ai__"?AI_BOT:users.find(u=>u.id===id);
+  const isFr=(a,b)=>friends.some(f=>(f[0]===a&&f[1]===b)||(f[0]===b&&f[1]===a));
+  const isBan=id=>{const b=bans.find(x=>x.userId===id);if(!b)return false;if(b.until==="perm")return true;return b.until>Date.now();};
+  const myFr=()=>me?friends.filter(f=>f.includes(me.id)).map(f=>f[0]===me.id?f[1]:f[0]).map(getU).filter(Boolean):[];
+  const myReqs=()=>reqs.filter(r=>r.to===me?.id);
+  const convMs=peer=>msgs[cid(me?.id,peer)]||[];
+  const showT=(msg,type="info")=>setToast({msg,type});
+
+  /* CALL HELPERS */
+  const requestMedia=async(type)=>{
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia(
+        type==="video"?{audio:true,video:true}:{audio:true}
+      );
+      return stream;
+    }catch(err){
+      if(err.name==="NotAllowedError")showT("Permission denied. Please allow mic/camera.","error");
+      else showT("Could not access mic/camera.","error");
+      return null;
+    }
+  };
+  const startCall=async(type)=>{
+    const stream=await requestMedia(type);
+    if(!stream)return;
+    setCallStream(stream);
+    setCallMuted(false);setCallCamOff(false);setCallSec(0);
+    setCallUI({type,state:"calling",peer:chatPeer});
+    /* simulate: peer "answers" after 4-8s (in real app this is signalling) */
+    const t=setTimeout(()=>{
+      setCallUI(p=>p&&p.state==="calling"?{...p,state:"active"}:p);
+    },Math.floor(Math.random()*4000)+4000);
+    callRingRef.current=t;
+  };
+  const answerCall=async()=>{
+    if(!incomingCall)return;
+    const stream=await requestMedia(incomingCall.type);
+    setCallStream(stream||null);
+    setCallMuted(false);setCallCamOff(false);setCallSec(0);
+    setCallUI({type:incomingCall.type,state:"active",peer:incomingCall.from});
+    setIncomingCall(null);
+  };
+  const declineCall=()=>{
+    setIncomingCall(null);showT("Call declined.","info");
+  };
+  const endCall=()=>{
+    clearTimeout(callRingRef.current);
+    callStream?.getTracks().forEach(t=>t.stop());
+    setCallStream(null);setCallUI(null);setCallSec(0);
+  };
+  const toggleMute=()=>{
+    if(callStream){callStream.getAudioTracks().forEach(t=>t.enabled=callMuted);}
+    setCallMuted(p=>!p);
+  };
+  const toggleCam=()=>{
+    if(callStream){callStream.getVideoTracks().forEach(t=>t.enabled=callCamOff);}
+    setCallCamOff(p=>!p);
+  };
+
+  /* STATUS HELPERS */
+  const myStatus=()=>statuses.filter(s=>s.userId===me?.id);
+  const friendStatuses=()=>statuses.filter(s=>isFr(me?.id,s.userId)&&s.userId!==me?.id&&Date.now()-s.ts<86400000);
+  const markStatusSeen=(stId)=>setStatuses(p=>p.map(s=>s.id===stId?{...s,seenBy:[...new Set([...s.seenBy,me.id])]}:s));
+  const deleteStatus=(stId)=>setStatuses(p=>p.filter(s=>s.id!==stId));
+  const postStatus=()=>{
+    if(!upMedia){showT("Pick a photo or video first.","warn");return;}
+    const ns={id:uid(),userId:me.id,media:upMedia,mediaType:upMediaType,text:upText,textX:upTextX,textY:upTextY,textColor:upTextColor,textSize:upTextSize,ts:Date.now(),seenBy:[me.id]};
+    setStatuses(p=>[...p.filter(s=>s.userId!==me.id),ns]);
+    setUpMedia(null);setUpText("");setUpTextX(50);setUpTextY(50);setUpTextColor("#ffffff");setUpTextSize(22);
+    setStatusUpload(false);setDashTab("status");showT("Status posted!","success");
+  };
+  const fmtT=s=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const isMobile=()=>window.innerWidth<700;
+
+  /* Auth */
+  const doLogin=()=>{
+    const u=users.find(x=>x.username===lf.u&&x.password===lf.p);
+    if(!u){setAErr("Invalid username or password.");return;}
+    if(isBan(u.id)){setAErr("Your account has been banned.");return;}
+    setMe({...u});setView("dashboard");setAErr("");setLf({u:"",p:""});
+  };
+  const doSignup=()=>{
+    if(!sf.u||!sf.dn||!sf.p){setAErr("Fill all required fields.");return;}
+    if(users.find(x=>x.username===sf.u)){setAErr("Username taken.");return;}
+    const nu={id:sf.u,username:sf.u,displayName:sf.dn,password:sf.p,bio:"",banner:null,pic:sf.pic,isAdmin:false,online:true};
+    setUsers(p=>[...p,nu]);setMe(nu);setView("dashboard");setAErr("");
+  };
+
+  /* Friends */
+  const sendReq=toId=>{
+    const left=cdLeft(cds,me.id,toId);
+    if(left>0){showT(`Wait ${left}s before re-requesting.`,"warn");return;}
+    if(isFr(me.id,toId)){showT("Already friends!","info");return;}
+    if(reqs.find(r=>r.from===me.id&&r.to===toId)){showT("Request already sent.","info");return;}
+    setReqs(p=>[...p,{id:uid(),from:me.id,to:toId}]);showT("Friend request sent! ✓","success");
+  };
+  const acceptReq=id=>{const r=reqs.find(x=>x.id===id);if(!r)return;setFriends(p=>[...p,[r.from,r.to]]);setReqs(p=>p.filter(x=>x.id!==id));showT("Friend added!","success");};
+  const ignoreReq=id=>{const r=reqs.find(x=>x.id===id);if(!r)return;setCds(p=>[...p,{from:r.from,to:r.to,until:Date.now()+60000}]);setReqs(p=>p.filter(x=>x.id!==id));};
+  const removeFr=uid_=>setFriends(p=>p.filter(f=>!(f.includes(me.id)&&f.includes(uid_))));
+
+  /* Messages */
+  const sendMsg=async()=>{
+    if(!input.trim())return;
+    const convId=cid(me.id,chatPeer);
+    const m={id:uid(),from:me.id,text:input,ts:Date.now(),seen:false,reply:replyTo,incog,selfD:incog};
+    setMsgs(p=>({...p,[convId]:[...(p[convId]||[]),m]}));
+    const txt=input;setInput("");setReplyTo(null);
+    if(chatPeer==="__ai__"){
+      setAiLoad(true);
+      try{
+        const history=(msgs[convId]||[]).slice(-10).map(x=>({role:x.from===me.id?"user":"assistant",content:x.text}));
+        const resp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:"You are Tecode AI, the smart assistant built into Tecode messaging app. Be helpful, friendly and concise.",messages:[...history,{role:"user",content:txt}]})});
+        const data=await resp.json();
+        const aiTxt=data.content?.[0]?.text||"Sorry, couldn't respond right now.";
+        setMsgs(p=>({...p,[convId]:[...(p[convId]||[]),{id:uid(),from:"__ai__",text:aiTxt,ts:Date.now(),seen:false,reply:null,incog:false,selfD:false}]}));
+      }catch{
+        setMsgs(p=>({...p,[convId]:[...(p[convId]||[]),{id:uid(),from:"__ai__",text:"⚠️ Connection error.",ts:Date.now(),seen:false,reply:null,incog:false,selfD:false}]}));
+      }
+      setAiLoad(false);
+    }
+  };
+  const markSeen=(convId,msgId)=>setMsgs(p=>{const list=p[convId]||[];return {...p,[convId]:list.map(m=>{if(m.id!==msgId||m.seen)return m;if(m.selfD)return null;return{...m,seen:true};}).filter(Boolean)};});
+  const openChat=peerId=>{setChatPeer(peerId);setIncog(false);setView("chat");setSidebar(false);setTimeout(()=>{const cv=cid(me.id,peerId);(msgs[cv]||[]).forEach(m=>{if(m.from!==me.id&&!m.seen)markSeen(cv,m.id);});},400);};
+
+  /* Profile */
+  const saveProfile=()=>{
+    if(!profEdit)return;
+    if(profEdit.newPw){if(profEdit.curPw!==me.password){showT("Current password incorrect.","error");return;}if(profEdit.newPw!==profEdit.conPw){showT("Passwords don't match.","error");return;}}
+    const upd={...me,displayName:profEdit.dn||me.displayName,username:profEdit.un||me.username,bio:profEdit.bio??me.bio,pic:profEdit.pic??me.pic,banner:profEdit.bannerImg?null:profEdit.banner??me.banner,bannerImg:profEdit.bannerImg??me.bannerImg,...(profEdit.newPw?{password:profEdit.newPw}:{})};
+    setUsers(p=>p.map(u=>u.id===me.id?upd:u));setMe(upd);setProfEdit(null);setView("dashboard");showT("Profile updated! ✓","success");
+  };
+
+  /* Admin */
+  const doBan=(userId,dur,reason)=>{const until=dur==="perm"?"perm":Date.now()+parseInt(dur)*60000;setBans(p=>[...p.filter(b=>b.userId!==userId),{userId,until,reason}]);showT("User banned.","success");};
+  const doUnban=userId=>{setBans(p=>p.filter(b=>b.userId!==userId));showT("User unbanned.","success");};
+  const doAddAdmin=()=>{
+    if(!addAdmF.u||!addAdmF.p){showT("Username & password required.","warn");return;}
+    if(users.find(u=>u.username===addAdmF.u)){setUsers(p=>p.map(u=>u.username===addAdmF.u?{...u,isAdmin:true}:u));showT("Granted admin.","success");}
+    else{const nu={id:addAdmF.u,username:addAdmF.u,displayName:addAdmF.dn||"te-code-owner",password:addAdmF.p,bio:"",banner:null,pic:null,isAdmin:true,online:false};setUsers(p=>[...p,nu]);showT("Admin created.","success");}
+    setAddAdmF({u:"",dn:"",p:""});
+  };
+
+  /* ── RENDER AUTH ── */
+  if(view==="login"||view==="signup") return (
+    <div style={{minHeight:"100vh",background:"#07090f",display:"flex",alignItems:"center",justifyContent:"center",padding:20,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-150,left:"50%",transform:"translateX(-50%)",width:700,height:350,background:"radial-gradient(ellipse,#4facfe0d,transparent 70%)",pointerEvents:"none"}}/>
+      <div style={{width:"100%",maxWidth:420,animation:"fadeIn .4s"}}>
+        <div style={{textAlign:"center",marginBottom:40}}>
+          <div style={{fontSize:54,fontFamily:"Oxanium,monospace",fontWeight:800,background:"linear-gradient(135deg,#4facfe,#00f2fe)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-2px"}}>tecode</div>
+          <div style={{color:"#4facfe80",fontSize:11,letterSpacing:5,textTransform:"uppercase",marginTop:4}}>connect beyond limits</div>
+        </div>
+        <div style={{display:"flex",background:"#0e1219",borderRadius:12,padding:4,marginBottom:24,border:"1px solid #1e2535"}}>
+          {["login","signup"].map(t=>(
+            <button key={t} onClick={()=>{setView(t);setAErr("");}} style={{flex:1,padding:"10px",borderRadius:8,border:"none",background:view===t?"linear-gradient(135deg,#4facfe,#00f2fe)":"transparent",color:view===t?"#07090f":"#6b7299",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:14,cursor:"pointer",transition:"all .2s"}}>
+              {t==="login"?"Sign In":"Sign Up"}
+            </button>
+          ))}
+        </div>
+        <div style={{background:"#0e1219",borderRadius:16,padding:28,border:"1px solid #1e2535",boxShadow:"0 24px 60px #000a"}}>
+          {aErr&&<div style={{background:"#ff475718",border:"1px solid #ff475740",borderRadius:8,padding:"10px 14px",color:"#ff6b7a",fontSize:13,marginBottom:16}}>{aErr}</div>}
+          {view==="signup"&&<><Field label="Display Name *" value={sf.dn} onChange={v=>setSf(p=>({...p,dn:v}))} placeholder="How others see you"/><Field label="Profile Picture" type="file" onChange={v=>setSf(p=>({...p,pic:v}))}/></>}
+          <Field label="Username *" value={view==="login"?lf.u:sf.u} onChange={v=>view==="login"?setLf(p=>({...p,u:v})):setSf(p=>({...p,u:v}))} placeholder="@username"/>
+          <Field label="Password *" type="password" value={view==="login"?lf.p:sf.p} onChange={v=>view==="login"?setLf(p=>({...p,p:v})):setSf(p=>({...p,p:v}))} placeholder="••••••••" onEnter={view==="login"?doLogin:doSignup}/>
+          <Btn onClick={view==="login"?doLogin:doSignup} full sx={{marginTop:4,padding:"14px",fontSize:15}}>{view==="login"?"Sign In →":"Create Account →"}</Btn>
+
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ── RENDER PROFILE VIEW ── */
+  if(viewProf){const u=viewProf;return(
+    <div style={{background:"#07090f",minHeight:"100vh",animation:"fadeIn .2s",overflowX:"hidden"}}>
+      {/* Top nav bar */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",position:"absolute",top:0,left:0,right:0,zIndex:10}}>
+        <button onClick={()=>setViewProf(null)} style={{background:"#00000080",border:"none",borderRadius:10,color:"#fff",padding:"9px 18px",cursor:"pointer",fontFamily:"Oxanium,monospace",fontSize:14,fontWeight:700}}>← Back</button>
+        {u.id===me?.id&&<button onClick={()=>{setProfEdit({dn:me.displayName,un:me.username,bio:me.bio,pic:me.pic,banner:me.banner,curPw:"",newPw:"",conPw:""});setViewProf(null);setView("profile");}} style={{background:"#00000080",border:"none",borderRadius:10,color:"#fff",padding:"9px 18px",cursor:"pointer",fontFamily:"Oxanium,monospace",fontSize:14,fontWeight:700}}>✏ Edit</button>}
+      </div>
+      {/* Banner full width */}
+      <div style={{width:"100%",height:220,background:u.bannerImg?"none":bnr(u.banner||"g0"),backgroundImage:u.bannerImg?`url(${u.bannerImg})`:"",backgroundSize:"cover",backgroundPosition:"center"}}/>
+      {/* Profile card */}
+      <div style={{padding:"0 18px 30px",maxWidth:600,margin:"0 auto"}}>
+        {/* Avatar overlapping banner */}
+        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginTop:-50}}>
+          <div style={{background:"#07090f",borderRadius:"50%",padding:4,display:"inline-block",flexShrink:0}}>
+            <Av user={u} size={90}/>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:8,paddingBottom:8}}>
+            {u.isAdmin&&<span style={{fontSize:12,background:"#ffa50225",color:"#ffa502",border:"1px solid #ffa50240",borderRadius:6,padding:"4px 10px",fontWeight:700,fontFamily:"Oxanium,monospace"}}>Admin</span>}
+            <Dot on={u.online} sx={{width:12,height:12}}/>
+            <span style={{fontSize:13,color:u.online?"#2ed573":"#6b7299",fontWeight:600}}>{u.online?"Online":"Offline"}</span>
+          </div>
+        </div>
+        {/* Name */}
+        <div style={{marginTop:12,marginBottom:16}}>
+          <div style={{fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:26,color:"#e8eaf0",lineHeight:1.1,wordBreak:"break-word"}}>{u.displayName}</div>
+          <div style={{color:"#4b5273",fontSize:14,marginTop:5}}>@{u.username}</div>
+        </div>
+        {/* Bio */}
+        {u.bio&&<div style={{background:"#0e1219",borderRadius:12,padding:"14px 16px",color:"#a0a8bf",fontSize:14,marginBottom:18,border:"1px solid #1e2535",lineHeight:1.7}}>{u.bio}</div>}
+        {/* Divider */}
+        <div style={{height:1,background:"#1e2535",marginBottom:18}}/>
+        {/* Actions */}
+        {me&&u.id!==me.id&&<div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          {isFr(me.id,u.id)?<>
+            <Btn onClick={()=>{openChat(u.id);setViewProf(null);}}>💬 Message</Btn>
+            <Btn onClick={()=>{removeFr(u.id);setViewProf(null);}} v="danger" sm>Remove Friend</Btn>
+          </>:reqs.find(r=>r.from===me.id&&r.to===u.id)?
+            <span style={{fontSize:13,background:"#ffa50218",color:"#ffa502",border:"1px solid #ffa50230",borderRadius:8,padding:"9px 18px"}}>Request Sent ✓</span>:
+            <Btn onClick={()=>sendReq(u.id)} v="ghost">Add Friend +</Btn>}
+        </div>}
+      </div>
+      {toast&&<Toast {...toast}/>}
+    </div>
+  );}
+
+  /* ── RENDER PROFILE EDIT ── */
+  if(view==="profile"&&profEdit) return(
+    <div style={{background:"#07090f",minHeight:"100vh",animation:"fadeIn .2s"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"0 16px",height:56,borderBottom:"1px solid #1e2535",background:"#0a0c14"}}>
+        <button onClick={()=>{setProfEdit(null);setView("dashboard");}} style={{background:"none",border:"none",color:"#4facfe",cursor:"pointer",fontSize:20,padding:"4px 8px"}}>←</button>
+        <span style={{fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:18,color:"#e8eaf0"}}>Edit Profile</span>
+      </div>
+      <div style={{padding:20,maxWidth:500,margin:"0 auto"}}>
+        {/* Banner preview */}
+        <div style={{height:110,borderRadius:12,background:profEdit?.bannerImg?"none":bnr(profEdit?.banner??me.banner),backgroundImage:profEdit?.bannerImg?`url(${profEdit.bannerImg})`:"none",backgroundSize:"cover",backgroundPosition:"center",marginBottom:10,position:"relative",overflow:"hidden"}}>
+          {!profEdit?.bannerImg&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap",padding:8}}>
+            {GRADS.map((g,i)=><div key={i} onClick={()=>setProfEdit(p=>({...p,banner:`g${i}`,bannerImg:null}))} style={{width:26,height:26,borderRadius:"50%",background:g,cursor:"pointer",border:(profEdit?.banner??me.banner)===`g${i}`?"3px solid #fff":"3px solid transparent",transition:"border .15s"}}/>)}
+          </div>}
+          {profEdit?.bannerImg&&<div style={{position:"absolute",inset:0,background:"#00000050",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <button onClick={()=>setProfEdit(p=>({...p,bannerImg:null}))} style={{background:"#ff4757",border:"none",borderRadius:8,color:"#fff",padding:"6px 14px",cursor:"pointer",fontSize:12,fontFamily:"Oxanium,monospace"}}>Remove Image</button>
+          </div>}
+        </div>
+        <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <label style={{background:"#1e2535",border:"1px solid #252a3d",borderRadius:8,padding:"8px 14px",cursor:"pointer",color:"#4facfe",fontSize:13,fontFamily:"Oxanium,monospace",fontWeight:700,display:"inline-flex",alignItems:"center",gap:6}}>
+            📷 Upload Banner
+            <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>setProfEdit(p=>({...p,bannerImg:ev.target.result,banner:null}));r.readAsDataURL(f);}}}/>
+          </label>
+          <span style={{color:"#4b5273",fontSize:12}}>or pick gradient above</span>
+        </div>
+        <Field label="Display Name" value={profEdit?.dn} onChange={v=>setProfEdit(p=>({...p,dn:v}))} placeholder={me.displayName}/>
+        <Field label="Username" value={profEdit?.un} onChange={v=>setProfEdit(p=>({...p,un:v}))} placeholder={me.username}/>
+        <Field label="Bio" type="textarea" value={profEdit?.bio} onChange={v=>setProfEdit(p=>({...p,bio:v}))} placeholder="Tell the world about yourself…"/>
+        <Field label="Profile Picture" type="file" onChange={v=>setProfEdit(p=>({...p,pic:v}))}/>
+        <div style={{borderTop:"1px solid #1e2535",paddingTop:16,marginTop:4,marginBottom:16}}>
+          <div style={{fontSize:11,color:"#3d4460",letterSpacing:2,textTransform:"uppercase",fontFamily:"Oxanium,monospace",marginBottom:12}}>Change Password</div>
+          <Field label="Current Password" type="password" value={profEdit?.curPw} onChange={v=>setProfEdit(p=>({...p,curPw:v}))} placeholder="••••••••"/>
+          <Field label="New Password" type="password" value={profEdit?.newPw} onChange={v=>setProfEdit(p=>({...p,newPw:v}))} placeholder="••••••••"/>
+          <Field label="Confirm Password" type="password" value={profEdit?.conPw} onChange={v=>setProfEdit(p=>({...p,conPw:v}))} placeholder="••••••••"/>
+        </div>
+        <Btn onClick={saveProfile} full>Save Changes ✓</Btn>
+      </div>
+      {toast&&<Toast {...toast}/>}
+    </div>
+  );
+
+  /* ── RENDER ADMIN ── */
+  if(view==="admin"&&me?.isAdmin){
+    const filt=users.filter(u=>u.id!=="__ai__"&&(u.username.includes(adSearch)||u.displayName.toLowerCase().includes(adSearch.toLowerCase())));
+    const tabs=[{id:"users",l:"User Management",ic:"👤"},{id:"bans",l:"Bans",ic:"🚫"},{id:"addadmin",l:"Add Admin",ic:"➕"},{id:"switch",l:"Switch Account",ic:"🔄"}];
+    const curTab=tabs.find(t=>t.id===adminTab);
+    return(
+      <div style={{display:"flex",flexDirection:"column",height:"100vh",background:"#07090f",fontFamily:"Jost,sans-serif",overflow:"hidden"}}>
+        <div style={{height:56,background:"#0a0c14",borderBottom:"1px solid #1e2535",display:"flex",alignItems:"center",gap:12,padding:"0 16px",flexShrink:0}}>
+          <button onClick={()=>setSidebar(p=>!p)} style={{background:"none",border:"none",color:"#ffa502",fontSize:22,cursor:"pointer",padding:"4px 6px",lineHeight:1}}>☰</button>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:16,color:"#ffa502"}}>🛡 Admin Panel</div>
+            <div style={{fontSize:11,color:"#4b5273"}}>@{me.username} · {curTab?.l}</div>
+          </div>
+          <Btn onClick={()=>setView("dashboard")} v="ghost" sm>← Back</Btn>
+        </div>
+        {sidebar&&<div onClick={()=>setSidebar(false)} style={{position:"fixed",inset:0,background:"#000000a0",zIndex:40}}/>}
+        <div style={{position:"fixed",left:0,top:0,bottom:0,zIndex:50,width:260,background:"#0a0c14",borderRight:"1px solid #1e2535",display:"flex",flexDirection:"column",transform:sidebar?"translateX(0)":"translateX(-100%)",transition:"transform .25s",boxShadow:sidebar?"4px 0 24px #000a":"none"}}>
+          <div style={{padding:"18px 16px 14px",borderBottom:"1px solid #1e2535"}}>
+            <div style={{fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:18,color:"#ffa502"}}>🛡 Admin Panel</div>
+            <div style={{fontSize:12,color:"#4b5273",marginTop:3}}>@{me.username}</div>
+          </div>
+          <nav style={{flex:1,padding:"10px 0"}}>
+            {tabs.map(t=>(
+              <button key={t.id} onClick={()=>{setAdminTab(t.id);setSidebar(false);}}
+                style={{width:"100%",padding:"13px 20px",background:adminTab===t.id?"#1e2535":"transparent",border:"none",borderLeft:adminTab===t.id?"3px solid #ffa502":"3px solid transparent",display:"flex",alignItems:"center",gap:14,cursor:"pointer",color:adminTab===t.id?"#ffa502":"#6b7299",fontSize:15,fontFamily:"Jost,sans-serif",transition:"all .15s",textAlign:"left"}}>
+                <span style={{fontSize:18}}>{t.ic}</span>
+                <span style={{fontWeight:adminTab===t.id?600:400}}>{t.l}</span>
+              </button>
+            ))}
+          </nav>
+          <div style={{padding:"14px 16px",borderTop:"1px solid #1e2535"}}>
+            <Btn onClick={()=>{setView("dashboard");setSidebar(false);}} v="ghost" sm full>← Dashboard</Btn>
+          </div>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:16}}>
+          {adminTab==="users"&&<>
+            <Field value={adSearch} onChange={setAdSearch} placeholder="Search users..." sx={{marginBottom:14}}/>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {filt.map(u=>{const banned=isBan(u.id);return(
+                <div key={u.id} style={{background:"#0e1219",border:`1px solid ${banned?"#ff475730":"#1e2535"}`,borderRadius:12,padding:"14px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                    <Av user={u} size={46}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontWeight:700,color:"#e8eaf0",fontSize:15}}>{u.displayName}</span>
+                        {u.isAdmin&&<span style={{fontSize:11,background:"#ffa50220",color:"#ffa502",borderRadius:4,padding:"2px 8px",fontWeight:700}}>Admin</span>}
+                        {banned&&<span style={{fontSize:11,background:"#ff475720",color:"#ff4757",borderRadius:4,padding:"2px 8px",fontWeight:700}}>Banned</span>}
+                      </div>
+                      <div style={{color:"#4b5273",fontSize:13,marginTop:2}}>@{u.username}</div>
+                    </div>
+                  </div>
+                  {u.id!==me.id&&<div style={{paddingLeft:58,display:"flex",gap:8}}>
+                    {banned
+                      ?<Btn onClick={()=>doUnban(u.id)} v="success" sm>Unban</Btn>
+                      :<Btn onClick={()=>{setBanForm({uid:u.id,dur:"perm",reason:""});setAdminTab("bans");}} v="danger" sm>Ban</Btn>}
+                  </div>}
+                </div>
+              );})}
+            </div>
+          </>}
+          {adminTab==="bans"&&<>
+            <div style={{background:"#0e1219",borderRadius:12,padding:18,border:"1px solid #1e2535",marginBottom:20}}>
+              <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:14,marginBottom:14}}>Ban a User</div>
+              <Field label="Username" value={banForm.uid} onChange={v=>setBanForm(p=>({...p,uid:v}))} placeholder="Enter username"/>
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:12,color:"#6b7299",marginBottom:6}}>Duration</div>
+                <select value={banForm.dur} onChange={e=>setBanForm(p=>({...p,dur:e.target.value}))} style={{width:"100%",padding:"11px 14px",background:"#07090f",border:"1px solid #252a3d",borderRadius:8,color:"#e8eaf0",fontSize:14,outline:"none"}}>
+                  <option value="perm">Permanent</option><option value="60">1 Hour</option><option value="1440">1 Day</option><option value="10080">1 Week</option>
+                </select>
+              </div>
+              <Field label="Reason" type="textarea" value={banForm.reason} onChange={v=>setBanForm(p=>({...p,reason:v}))} placeholder="Reason for ban..."/>
+              <Btn onClick={()=>{const u=users.find(x=>x.username===banForm.uid||x.id===banForm.uid);if(!u){showT("User not found.","error");return;}doBan(u.id,banForm.dur,banForm.reason);setBanForm({uid:"",dur:"perm",reason:""}); }} v="danger" full>Apply Ban</Btn>
+            </div>
+            <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:13,marginBottom:12}}>Active Bans ({bans.length})</div>
+            {bans.length===0
+              ?<div style={{color:"#3d4460",fontSize:13,textAlign:"center",padding:"20px 0"}}>No active bans.</div>
+              :<div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {bans.map(b=>{const u=getU(b.userId);return(
+                  <div key={b.userId} style={{background:"#0e1219",border:"1px solid #ff475730",borderRadius:12,padding:"14px 16px"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+                      <Av user={u} size={44}/>
+                      <div style={{flex:1}}><div style={{color:"#e8eaf0",fontWeight:600,fontSize:15}}>{u?.displayName||b.userId}</div><div style={{fontSize:12,color:"#6b7299",marginTop:2}}>{b.reason||"No reason"} · {b.until==="perm"?"Permanent":"Temporary"}</div></div>
+                    </div>
+                    <div style={{paddingLeft:56}}><Btn onClick={()=>doUnban(b.userId)} v="success" sm>Unban</Btn></div>
+                  </div>
+                );})}
+              </div>}
+          </>}
+          {adminTab==="addadmin"&&<>
+            <div style={{background:"#0e1219",borderRadius:12,padding:18,border:"1px solid #1e2535"}}>
+              <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#ffa502",fontSize:14,marginBottom:16}}>Create Admin Account</div>
+              <Field label="Username *" value={addAdmF.u} onChange={v=>setAddAdmF(p=>({...p,u:v}))} placeholder="owner"/>
+              <Field label="Display Name" value={addAdmF.dn} onChange={v=>setAddAdmF(p=>({...p,dn:v}))} placeholder="te-code-owner"/>
+              <Field label="Password *" type="password" value={addAdmF.p} onChange={v=>setAddAdmF(p=>({...p,p:v}))} placeholder="........"/>
+              <Btn onClick={doAddAdmin} full>Create Admin Account</Btn>
+              <div style={{fontSize:11,color:"#3d4460",marginTop:12,lineHeight:1.6}}>Default: username "owner", display name "te-code-owner", no profile picture.</div>
+            </div>
+          </>}
+          {adminTab==="switch"&&<>
+            <div style={{fontSize:13,color:"#6b7299",marginBottom:14}}>Switch between admin accounts instantly.</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {users.filter(u=>u.isAdmin).map(u=>(
+                <div key={u.id} style={{background:"#0e1219",border:`1px solid ${u.id===me.id?"#ffa50240":"#1e2535"}`,borderRadius:12,padding:"14px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:u.id===me.id?0:10}}>
+                    <Av user={u} size={46}/>
+                    <div style={{flex:1}}><div style={{color:"#e8eaf0",fontWeight:700,fontSize:15}}>{u.displayName}</div><div style={{fontSize:12,color:"#6b7299",marginTop:2}}>@{u.username}</div></div>
+                    {u.id===me.id&&<span style={{fontSize:11,background:"#ffa50218",color:"#ffa502",borderRadius:6,padding:"4px 12px",fontWeight:700}}>Current</span>}
+                  </div>
+                  {u.id!==me.id&&<div style={{paddingLeft:58}}><Btn onClick={()=>{setMe({...u});showT(`Switched to ${u.displayName}`,"success");}} v="muted" sm>Switch</Btn></div>}
+                </div>
+              ))}
+            </div>
+          </>}
+        </div>
+        {toast&&<Toast {...toast}/>}
+      </div>
+    );
+  }
+
+    /* ── RENDER DASHBOARD ── */
+  if(view==="dashboard"){
+    const frList=myFr();const inReqs=myReqs();
+    const allOther=users.filter(u=>u.id!==me.id&&u.id!=="__ai__");
+    const searched=uSearch.trim()?allOther.filter(u=>u.username.includes(uSearch)||u.displayName.toLowerCase().includes(uSearch.toLowerCase())):[];
+    const mob=isMobile();
+    return(
+      <div style={{display:"flex",height:"100vh",background:"#07090f",overflow:"hidden",position:"relative"}}>
+        {sidebar&&mob&&<div onClick={()=>setSidebar(false)} style={{position:"fixed",inset:0,background:"#000a",zIndex:40}}/>}
+        {/* Sidebar */}
+        <div style={{position:mob?"fixed":"relative",left:0,top:0,bottom:0,zIndex:50,width:260,background:"#0a0c14",borderRight:"1px solid #1e2535",display:"flex",flexDirection:"column",transform:mob?(sidebar?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform .25s",flexShrink:0}}>
+          <div style={{padding:"14px 16px",borderBottom:"1px solid #1e2535",display:"flex",alignItems:"center",gap:10}}>
+            <div style={{flex:1,fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:22,background:"linear-gradient(135deg,#4facfe,#00f2fe)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>tecode</div>
+          </div>
+          {/* Me */}
+          <div style={{padding:"12px 16px",borderBottom:"1px solid #1e2535",display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>{setViewProf(me);setSidebar(false);}}>
+            <div style={{position:"relative"}}><Av user={me} size={38}/><Dot on sx={{position:"absolute",bottom:0,right:0,width:10,height:10}}/></div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:600,color:"#e8eaf0",fontSize:14,fontFamily:"Oxanium,monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{me.displayName}</div>
+              <div style={{color:"#4b5273",fontSize:11,display:"flex",gap:4,alignItems:"center"}}>@{me.username}{me.isAdmin&&<span style={{fontSize:10,background:"#ffa50220",color:"#ffa502",borderRadius:3,padding:"0 5px"}}>Admin</span>}</div>
+            </div>
+          </div>
+          <nav style={{flex:1,overflowY:"auto",padding:"8px 0"}}>
+            {[{id:"friends",l:"Friends",ic:"👥"},{id:"requests",l:"Requests",ic:"📩",badge:inReqs.length},{id:"search",l:"Find People",ic:"🔍"},{id:"status",l:"Status",ic:"📸"},{id:"servers-goto",l:"Servers",ic:"🌐"}].map(t=>(
+              <button key={t.id} onClick={()=>{if(t.id==="servers-goto"){setView("servers");setSidebar(false);return;}setDashTab(t.id);setSidebar(false);}} style={{width:"100%",padding:"10px 16px",background:dashTab===t.id?"#1e2535":"transparent",border:"none",display:"flex",alignItems:"center",gap:12,cursor:"pointer",color:dashTab===t.id?"#4facfe":"#7a8499",fontSize:14,fontFamily:"Jost,sans-serif",transition:"all .15s"}}>
+                <span style={{fontSize:15}}>{t.ic}</span>{t.l}{t.badge>0&&<span style={{marginLeft:"auto",background:"#ff4757",color:"#fff",borderRadius:"50%",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11}}>{t.badge}</span>}
+              </button>
+            ))}
+            <div style={{padding:"10px 16px 4px 16px",marginTop:8}}>
+              <div style={{fontSize:10,color:"#2d3450",letterSpacing:2,textTransform:"uppercase",fontFamily:"Oxanium,monospace"}}>Direct Messages</div>
+            </div>
+            <button onClick={()=>openChat("__ai__")} style={{width:"100%",padding:"8px 16px",background:"transparent",border:"none",display:"flex",alignItems:"center",gap:10,cursor:"pointer",color:"#7a8499",fontSize:14,fontFamily:"Jost,sans-serif",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#1e2535"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <Av user={AI_BOT} size={28}/><span style={{flex:1,textAlign:"left"}}>Tecode AI</span><span style={{width:7,height:7,borderRadius:"50%",background:"#4facfe"}}/>
+            </button>
+            {frList.map(u=>(
+              <button key={u.id} onClick={()=>openChat(u.id)} style={{width:"100%",padding:"8px 16px",background:"transparent",border:"none",display:"flex",alignItems:"center",gap:10,cursor:"pointer",color:"#7a8499",fontSize:14,fontFamily:"Jost,sans-serif",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#1e2535"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <div style={{position:"relative",flexShrink:0}}><Av user={u} size={28}/><Dot on={u.online} sx={{position:"absolute",bottom:-1,right:-1,width:8,height:8}}/></div>
+                <span style={{flex:1,textAlign:"left",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.displayName}</span>
+              </button>
+            ))}
+          </nav>
+          <div style={{borderTop:"1px solid #1e2535",padding:"10px 12px",display:"flex",gap:8,flexWrap:"wrap"}}>
+            <Btn onClick={()=>{setProfEdit({dn:me.displayName,un:me.username,bio:me.bio,pic:me.pic,banner:me.banner,curPw:"",newPw:"",conPw:""});setView("profile");setSidebar(false);}} v="ghost" sm>⚙ Profile</Btn>
+            {me.isAdmin&&<Btn onClick={()=>{setView("admin");setSidebar(false);}} v="muted" sm>🛡 Admin</Btn>}
+            <Btn onClick={()=>{setMe(null);setView("login");}} v="danger" sm>Exit</Btn>
+          </div>
+        </div>
+        {/* Main */}
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div style={{padding:"0 16px",height:56,background:"#0a0c14",borderBottom:"1px solid #1e2535",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+            {mob&&<button onClick={()=>setSidebar(p=>!p)} style={{background:"none",border:"none",color:"#7a8499",fontSize:22,cursor:"pointer",padding:"4px 6px"}}>☰</button>}
+            <div style={{flex:1,fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:16}}>{{friends:"Friends",requests:"Friend Requests",search:"Find People"}[dashTab]}</div>
+            {me.isAdmin&&<Btn onClick={()=>setView("admin")} v="muted" sm>🛡 Admin</Btn>}
+          </div>
+          <div style={{flex:1,overflowY:"auto",padding:20}}>
+            {/* FRIENDS */}
+            {dashTab==="friends"&&(frList.length===0?
+              <div style={{textAlign:"center",color:"#3d4460",marginTop:80,fontFamily:"Oxanium,monospace"}}>
+                <div style={{fontSize:52,marginBottom:14}}>👥</div>
+                <div style={{fontSize:20,fontWeight:700}}>No friends yet</div>
+                <div style={{fontSize:13,marginTop:6,color:"#2d3450"}}>Search for people to connect with</div>
+                <Btn onClick={()=>setDashTab("search")} v="ghost" sx={{marginTop:20}}>Find People →</Btn>
+              </div>:
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
+                {frList.map(u=>(
+                  <div key={u.id} style={{background:"#0e1219",border:"1px solid #1e2535",borderRadius:14,overflow:"hidden",transition:"border-color .2s,transform .2s"}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#4facfe30";e.currentTarget.style.transform="translateY(-2px)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e2535";e.currentTarget.style.transform="none";}}>
+                    <div style={{height:64,background:u.bannerImg?"none":bnr(u.banner||"g0"),backgroundImage:u.bannerImg?`url(${u.bannerImg})`:"",backgroundSize:"cover",backgroundPosition:"center"}}/>
+                    <div style={{padding:"0 14px 14px"}}>
+                      <div style={{position:"relative",display:"inline-block",marginTop:-28,marginBottom:8}}>
+                        <Av user={u} size={52} sx={{border:"3px solid #0e1219"}}/>
+                        <Dot on={u.online} sx={{position:"absolute",bottom:2,right:2,border:"2px solid #0e1219"}}/>
+                      </div>
+                      <div style={{fontWeight:700,color:"#e8eaf0",fontSize:15,fontFamily:"Oxanium,monospace"}}>{u.displayName}</div>
+                      <div style={{color:"#4b5273",fontSize:12,marginBottom:4}}>@{u.username}</div>
+                      {u.bio&&<div style={{color:"#6b7299",fontSize:13,marginBottom:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.bio}</div>}
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                        <Btn onClick={()=>openChat(u.id)} v="primary" sm>💬 Chat</Btn>
+                        <Btn onClick={()=>setViewProf(u)} v="ghost" sm>Profile</Btn>
+                        <Btn onClick={()=>removeFr(u.id)} v="danger" sm>×</Btn>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* REQUESTS */}
+            {dashTab==="requests"&&(inReqs.length===0?
+              <div style={{textAlign:"center",color:"#3d4460",marginTop:80,fontFamily:"Oxanium,monospace"}}><div style={{fontSize:52,marginBottom:14}}>📩</div><div style={{fontSize:20,fontWeight:700}}>No pending requests</div></div>:
+              <div style={{maxWidth:460,display:"flex",flexDirection:"column",gap:10}}>
+                {inReqs.map(r=>{const from=getU(r.from);const left=cdLeft(cds,r.from,me.id);return(
+                  <div key={r.id} style={{background:"#0e1219",border:"1px solid #1e2535",borderRadius:12,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,animation:"fadeIn .2s"}}>
+                    <Av user={from} size={46}/>
+                    <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:"#e8eaf0",fontSize:15}}>{from?.displayName}</div><div style={{color:"#4b5273",fontSize:12}}>@{from?.username}</div>{left>0&&<div style={{color:"#ffa502",fontSize:11,marginTop:3}}>⏱ Cooldown: {left}s</div>}</div>
+                    <div style={{display:"flex",gap:8}}><Btn onClick={()=>acceptReq(r.id)} v="success" sm>✓ Accept</Btn><Btn onClick={()=>ignoreReq(r.id)} v="danger" sm>Ignore</Btn></div>
+                  </div>
+                );})}
+              </div>
+            )}
+            {/* SEARCH */}
+            {dashTab==="search"&&<>
+              <Field value={uSearch} onChange={setUSearch} placeholder="Search by username or name…" sx={{maxWidth:440,marginBottom:16}}/>
+              {uSearch.trim()&&(searched.length===0?<div style={{color:"#3d4460",textAlign:"center",marginTop:40}}>No users found</div>:
+                <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:440}}>
+                  {searched.map(u=>{const fr=isFr(me.id,u.id);const sent=reqs.find(r=>r.from===me.id&&r.to===u.id);const left=cdLeft(cds,me.id,u.id);return(
+                    <div key={u.id} style={{background:"#0e1219",border:"1px solid #1e2535",borderRadius:12,padding:"14px 16px",display:"flex",alignItems:"center",gap:12,animation:"fadeIn .15s"}}>
+                      <div style={{position:"relative"}}><Av user={u} size={46}/><Dot on={u.online} sx={{position:"absolute",bottom:0,right:0}}/></div>
+                      <div style={{flex:1,minWidth:0}}><div style={{fontWeight:600,color:"#e8eaf0",fontSize:15}}>{u.displayName}</div><div style={{color:"#4b5273",fontSize:12}}>@{u.username}</div>{left>0&&<div style={{color:"#ffa502",fontSize:11,marginTop:3}}>⏱ {left}s cooldown</div>}</div>
+                      <div>{fr?<Btn onClick={()=>openChat(u.id)} v="primary" sm>Chat</Btn>:sent?<span style={{fontSize:11,color:"#ffa502",background:"#ffa50218",borderRadius:4,padding:"4px 10px"}}>Sent</span>:left>0?<span style={{fontSize:11,color:"#ffa502",background:"#ffa50218",borderRadius:4,padding:"4px 10px"}}>{left}s</span>:<Btn onClick={()=>sendReq(u.id)} v="ghost" sm>Add +</Btn>}</div>
+                    </div>
+                  );})}
+                </div>
+              )}
+            </>}
+          </div>
+        </div>
+
+            {/* STATUS TAB */}
+            {dashTab==="status"&&<div style={{maxWidth:600,padding:"0 20px 20px"}}>
+              <div style={{background:"#0e1219",border:"1px solid #1e2535",borderRadius:14,padding:16,marginBottom:20}}>
+                <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#6b7299",fontSize:11,letterSpacing:1.5,marginBottom:12}}>MY STATUS</div>
+                {myStatus().length===0?
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    <div style={{width:56,height:56,borderRadius:"50%",background:"#1e2535",border:"2px dashed #4facfe50",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,cursor:"pointer",flexShrink:0}} onClick={()=>setStatusUpload(true)}>+</div>
+                    <div style={{flex:1}}>
+                      <div style={{color:"#e8eaf0",fontWeight:600,fontSize:14}}>Add a status</div>
+                      <div style={{color:"#4b5273",fontSize:12,marginTop:2}}>Share a photo or video</div>
+                    </div>
+                    <button onClick={()=>setStatusUpload(true)} style={{background:"linear-gradient(135deg,#4facfe,#00f2fe)",border:"none",borderRadius:8,color:"#07090f",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:13,padding:"8px 16px",cursor:"pointer",flexShrink:0}}>+ Add</button>
+                  </div>:
+                  myStatus().map(st=>(
+                    <div key={st.id} style={{display:"flex",alignItems:"center",gap:14}}>
+                      <div onClick={()=>setStatusView({statuses:myStatus(),idx:0})} style={{width:56,height:56,borderRadius:"50%",border:"2px solid #4facfe",overflow:"hidden",cursor:"pointer",flexShrink:0}}>
+                        <img src={st.media} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                      </div>
+                      <div style={{flex:1}}>
+                        <div style={{color:"#e8eaf0",fontWeight:600,fontSize:14}}>My Status</div>
+                        <div style={{color:"#4b5273",fontSize:12,marginTop:2}}>{st.seenBy.filter(id=>id!==me.id).length} views · {Math.round((Date.now()-st.ts)/3600000)}h ago</div>
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>setStatusUpload(true)} style={{background:"#1e2535",border:"none",borderRadius:8,color:"#4facfe",fontFamily:"Oxanium,monospace",fontSize:12,padding:"6px 12px",cursor:"pointer"}}>Update</button>
+                        <button onClick={()=>deleteStatus(st.id)} style={{background:"#ff475718",border:"1px solid #ff475730",borderRadius:8,color:"#ff6b7a",fontFamily:"Oxanium,monospace",fontSize:12,padding:"6px 12px",cursor:"pointer"}}>Delete</button>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+              <div style={{background:"#0e1219",border:"1px solid #1e2535",borderRadius:14,padding:16}}>
+                <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#6b7299",fontSize:11,letterSpacing:1.5,marginBottom:12}}>RECENT UPDATES</div>
+                {friendStatuses().length===0?
+                  <div style={{textAlign:"center",color:"#3d4460",padding:"30px 0",fontFamily:"Oxanium,monospace"}}>
+                    <div style={{fontSize:36,marginBottom:10}}>📸</div>
+                    <div style={{fontSize:14,fontWeight:700}}>No status updates</div>
+                    <div style={{fontSize:12,marginTop:4}}>Friends statuses will appear here</div>
+                  </div>:
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    {[...new Map(friendStatuses().map(s=>[s.userId,s])).values()].map(st=>{
+                      const u=getU(st.userId);const seen=st.seenBy.includes(me.id);
+                      return(
+                        <div key={st.userId} style={{display:"flex",alignItems:"center",gap:14,cursor:"pointer",padding:"6px 0"}}
+                          onClick={()=>{markStatusSeen(st.id);setStatusView({statuses:friendStatuses().filter(s=>s.userId===st.userId),idx:0});}}>
+                          <div style={{width:56,height:56,borderRadius:"50%",border:`3px solid ${seen?"#3d4460":"#4facfe"}`,overflow:"hidden",flexShrink:0}}>
+                            <img src={st.media} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                          </div>
+                          <div style={{flex:1}}>
+                            <div style={{color:"#e8eaf0",fontWeight:600,fontSize:14}}>{u?.displayName}</div>
+                            <div style={{color:"#4b5273",fontSize:12,marginTop:2}}>{Math.round((Date.now()-st.ts)/3600000)}h ago{seen?" · Seen":""}</div>
+                          </div>
+                          <div style={{width:10,height:10,borderRadius:"50%",background:u?.online?"#2ed573":"#3d4460",flexShrink:0}}/>
+                        </div>
+                      );
+                    })}
+                  </div>
+                }
+              </div>
+            </div>}
+
+        {toast&&<Toast {...toast}/>}
+
+        {/* STATUS VIEWER */}
+        {statusView&&(
+          <div style={{position:"fixed",inset:0,background:"#000",zIndex:200,display:"flex",flexDirection:"column"}}>
+            {statusView.statuses.map((st,i)=>i===statusView.idx&&(
+              <div key={st.id} style={{flex:1,position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <div style={{position:"absolute",top:12,left:12,right:12,display:"flex",gap:4,zIndex:10}}>
+                  {statusView.statuses.map((_,pi)=>(
+                    <div key={pi} style={{flex:1,height:3,borderRadius:2,background:pi<statusView.idx?"#fff":pi===statusView.idx?"#4facfe":"#ffffff40"}}/>
+                  ))}
+                </div>
+                <div style={{position:"absolute",top:28,left:12,right:12,display:"flex",alignItems:"center",gap:10,zIndex:10}}>
+                  <Av user={getU(st.userId)} size={36} sx={{border:"2px solid #fff"}}/>
+                  <div>
+                    <div style={{color:"#fff",fontWeight:700,fontSize:14,fontFamily:"Oxanium,monospace"}}>{getU(st.userId)?.displayName}</div>
+                    <div style={{color:"#ffffff90",fontSize:11}}>{Math.round((Date.now()-st.ts)/3600000)}h ago</div>
+                  </div>
+                  <button onClick={()=>setStatusView(null)} style={{marginLeft:"auto",background:"none",border:"none",color:"#fff",fontSize:28,cursor:"pointer",lineHeight:1}}>×</button>
+                </div>
+                {st.mediaType==="video"?
+                  <video src={st.media} style={{maxWidth:"100%",maxHeight:"100vh",objectFit:"contain"}} autoPlay loop/>:
+                  <img src={st.media} style={{maxWidth:"100%",maxHeight:"100vh",objectFit:"contain"}}/>}
+                {st.text&&<div style={{position:"absolute",left:`${st.textX}%`,top:`${st.textY}%`,transform:"translate(-50%,-50%)",color:st.textColor,fontSize:st.textSize,fontFamily:"Jost,sans-serif",fontWeight:700,textShadow:"0 2px 12px #000c",textAlign:"center",maxWidth:"80%",wordBreak:"break-word",pointerEvents:"none"}}>{st.text}</div>}
+                {statusView.idx>0&&<button onClick={e=>{e.stopPropagation();setStatusView(p=>({...p,idx:p.idx-1}));}} style={{position:"absolute",left:0,top:0,bottom:0,width:"30%",background:"transparent",border:"none",cursor:"pointer"}}/>}
+                {statusView.idx<statusView.statuses.length-1&&<button onClick={e=>{e.stopPropagation();setStatusView(p=>({...p,idx:p.idx+1}));}} style={{position:"absolute",right:0,top:0,bottom:0,width:"30%",background:"transparent",border:"none",cursor:"pointer"}}/>}
+                {st.userId===me.id&&<div style={{position:"absolute",bottom:20,left:20,right:20,background:"#00000080",borderRadius:10,padding:"10px 14px"}}>
+                  <div style={{color:"#fff",fontSize:13}}>👁 {st.seenBy.filter(id=>id!==me.id).length} views</div>
+                  <div style={{color:"#ffffff70",fontSize:11,marginTop:3}}>{st.seenBy.filter(id=>id!==me.id).map(id=>getU(id)?.displayName).filter(Boolean).join(", ")||"No views yet"}</div>
+                </div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* STATUS UPLOAD */}
+        {statusUpload&&(
+          <div style={{position:"fixed",inset:0,background:"#07090f",zIndex:300,display:"flex",flexDirection:"column",fontFamily:"Jost,sans-serif"}}>
+            <div style={{height:56,background:"#0a0c14",borderBottom:"1px solid #1e2535",display:"flex",alignItems:"center",padding:"0 16px",gap:12,flexShrink:0}}>
+              <button onClick={()=>{setStatusUpload(false);setUpMedia(null);setUpText("");}} style={{background:"none",border:"none",color:"#4facfe",fontSize:20,cursor:"pointer"}}>←</button>
+              <span style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:16,flex:1}}>New Status</span>
+              {upMedia&&<button onClick={postStatus} style={{background:"linear-gradient(135deg,#4facfe,#00f2fe)",border:"none",borderRadius:8,color:"#07090f",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:14,padding:"8px 18px",cursor:"pointer"}}>Post →</button>}
+            </div>
+            {!upMedia?
+              <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:20,padding:24}}>
+                <div style={{fontSize:64}}>📸</div>
+                <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:20}}>Add a Status</div>
+                <div style={{color:"#6b7299",fontSize:14,textAlign:"center",maxWidth:320}}>Share a photo or video with your friends. It disappears after 24 hours.</div>
+                <div style={{display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
+                  <label style={{background:"linear-gradient(135deg,#4facfe,#00f2fe)",borderRadius:12,padding:"16px 28px",cursor:"pointer",color:"#07090f",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:15,display:"flex",alignItems:"center",gap:8}}>
+                    📷 Photo
+                    <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>{setUpMedia(ev.target.result);setUpMediaType("image");};r.readAsDataURL(f);}}}/>
+                  </label>
+                  <label style={{background:"#1e2535",border:"1px solid #4facfe40",borderRadius:12,padding:"16px 28px",cursor:"pointer",color:"#4facfe",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:15,display:"flex",alignItems:"center",gap:8}}>
+                    🎬 Video
+                    <input type="file" accept="video/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>{setUpMedia(ev.target.result);setUpMediaType("video");};r.readAsDataURL(f);}}}/>
+                  </label>
+                </div>
+              </div>:
+              <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+                <div style={{flex:1,position:"relative",background:"#000",overflow:"hidden",cursor:"crosshair"}}
+                  onClick={e=>{const rect=e.currentTarget.getBoundingClientRect();setUpTextX(Math.round(((e.clientX-rect.left)/rect.width)*100));setUpTextY(Math.round(((e.clientY-rect.top)/rect.height)*100));}}>
+                  {upMediaType==="image"?
+                    <img src={upMedia} style={{width:"100%",height:"100%",objectFit:"contain"}}/>:
+                    <video src={upMedia} style={{width:"100%",height:"100%",objectFit:"contain"}} controls loop/>}
+                  {upText&&<div style={{position:"absolute",left:`${upTextX}%`,top:`${upTextY}%`,transform:"translate(-50%,-50%)",color:upTextColor,fontSize:upTextSize,fontFamily:"Jost,sans-serif",fontWeight:700,textShadow:"0 2px 8px #000c",textAlign:"center",maxWidth:"80%",wordBreak:"break-word",pointerEvents:"none"}}>{upText}</div>}
+                  {upText&&<div style={{position:"absolute",top:12,left:"50%",transform:"translateX(-50%)",background:"#00000080",borderRadius:6,padding:"4px 10px",color:"#fff",fontSize:11,whiteSpace:"nowrap"}}>Tap to move text</div>}
+                </div>
+                <div style={{background:"#0a0c14",borderTop:"1px solid #1e2535",padding:"14px 16px",flexShrink:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <span style={{fontSize:18,color:"#6b7299"}}>T</span>
+                    <input value={upText} onChange={e=>setUpText(e.target.value)} placeholder="Add text to your status…"
+                      style={{flex:1,background:"#1e2535",border:"1px solid #252a3d",borderRadius:8,padding:"10px 14px",color:"#e8eaf0",fontSize:14,fontFamily:"Jost,sans-serif",outline:"none"}}/>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:12,color:"#6b7299"}}>Size</span>
+                      <input type="range" min="14" max="48" value={upTextSize} onChange={e=>setUpTextSize(+e.target.value)} style={{width:80}}/>
+                      <span style={{fontSize:12,color:"#e8eaf0",minWidth:24}}>{upTextSize}px</span>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontSize:12,color:"#6b7299"}}>Color</span>
+                      <div style={{display:"flex",gap:5}}>
+                        {["#ffffff","#000000","#4facfe","#ff69b4","#ffa502","#2ed573","#ff4757","#a18cd1"].map(col=>(
+                          <div key={col} onClick={()=>setUpTextColor(col)} style={{width:22,height:22,borderRadius:"50%",background:col,cursor:"pointer",border:upTextColor===col?"3px solid #e8eaf0":"2px solid #ffffff30",transition:"border .15s"}}/>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{marginTop:10,fontSize:12,color:"#4b5273"}}>💡 Tap on the image to place text at that position</div>
+                </div>
+              </div>
+            }
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ── RENDER CHAT ── */
+  if(view==="chat"){
+    const peer=getU(chatPeer);const convList=convMs(chatPeer);const isAI=chatPeer==="__ai__";
+    const T=incog?{bg:"#fff0f5",hdr:"#ffe4ef",bdr:"#ffb3d1",acc:"#ff69b4",txt:"#5a1a33",muted:"#a05070",bMeTxt:"#fff",bMe:"#ff85c2",bThm:"#ffc0d9",bThmTxt:"#4a1228",inp:"#ffe4ef"}:{bg:"#07090f",hdr:"#0a0c14",bdr:"#1e2535",acc:"#4facfe",txt:"#e8eaf0",muted:"#6b7299",bMeTxt:"#07090f",bMe:"linear-gradient(135deg,#4facfe,#00f2fe)",bThm:"#1e2535",bThmTxt:"#e8eaf0",inp:"#0e1219"};
+    return(
+      <div style={{display:"flex",flexDirection:"column",height:"100vh",background:T.bg,transition:"background .35s"}}>
+        {/* Header */}
+        <div style={{padding:"0 14px",height:58,background:T.hdr,borderBottom:`1px solid ${T.bdr}`,display:"flex",alignItems:"center",gap:12,flexShrink:0,transition:"background .35s"}}>
+          <button onClick={()=>setView("dashboard")} style={{background:"none",border:"none",color:T.acc,cursor:"pointer",fontSize:20,padding:"4px 8px"}}>←</button>
+          <div style={{position:"relative",cursor:"pointer"}} onClick={()=>setViewProf(peer)}><Av user={peer} size={36}/>{peer?.online&&<Dot on sx={{position:"absolute",bottom:0,right:0,width:9,height:9}}/>}</div>
+          <div style={{flex:1,cursor:"pointer"}} onClick={()=>setViewProf(peer)}>
+            <div style={{fontWeight:700,color:T.txt,fontSize:15,fontFamily:"Oxanium,monospace"}}>{peer?.displayName}</div>
+            <div style={{fontSize:11,color:peer?.online?"#2ed573":T.muted}}>{peer?.online?"● Online":"○ Offline"}</div>
+          </div>
+          {!isAI&&<>
+            <button title="Voice Call" onClick={()=>startCall("audio")} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:18,padding:"4px 6px",borderRadius:6,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color="#2ed573"} onMouseLeave={e=>e.currentTarget.style.color=T.muted}>📞</button>
+            <button title="Video Call" onClick={()=>startCall("video")} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:18,padding:"4px 6px",borderRadius:6,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color="#4facfe"} onMouseLeave={e=>e.currentTarget.style.color=T.muted}>📹</button>
+          </>}
+          {!isAI&&<button onClick={()=>setIncog(p=>!p)} title="Incognito" style={{background:incog?"#ff69b420":"transparent",border:`1px solid ${incog?"#ff69b460":"transparent"}`,borderRadius:8,color:incog?"#ff69b4":T.muted,cursor:"pointer",padding:"6px 10px",fontSize:15,transition:"all .2s"}}>👻</button>}
+        </div>
+        {incog&&<div style={{background:"#ff69b418",borderBottom:"1px solid #ff69b430",padding:"5px 16px",fontSize:12,color:"#ff85c2",display:"flex",alignItems:"center",gap:8}}>
+          <span>👻</span><strong>Incognito</strong> — Messages vanish after being seen
+        </div>}
+        {/* Messages */}
+        <div style={{flex:1,overflowY:"auto",padding:"14px 10px",display:"flex",flexDirection:"column",gap:2}}>
+          {convList.length===0&&<div style={{textAlign:"center",color:T.muted,marginTop:70,fontFamily:"Oxanium,monospace"}}>
+            <Av user={peer} size={64} sx={{margin:"0 auto 14px"}}/>
+            <div style={{fontSize:20,fontWeight:700,color:T.txt}}>{peer?.displayName}</div>
+            <div style={{fontSize:13,marginTop:5}}>{isAI?"Your AI companion. Ask me anything!":"Start the conversation!"}</div>
+          </div>}
+          {convList.map((m,i)=>{
+            const isMe=m.from===me.id;const sender=getU(m.from);
+            const replyMsg=m.reply?convList.find(x=>x.id===m.reply):null;
+            const showAv=!isMe&&(i===0||convList[i-1]?.from!==m.from);
+            if(!isMe&&!m.seen)setTimeout(()=>markSeen(cid(me.id,chatPeer),m.id),700);
+            return(
+              <div key={m.id} style={{display:"flex",flexDirection:"column",alignItems:isMe?"flex-end":"flex-start",marginBottom:showAv?4:0,animation:"fadeIn .12s"}}>
+                {replyMsg&&<div style={{fontSize:11,color:T.muted,padding:"2px 10px",background:T.hdr,borderRadius:6,marginBottom:2,maxWidth:"68%",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",borderLeft:`2px solid ${T.acc}`,alignSelf:isMe?"flex-end":"flex-start"}}>↩ {getU(replyMsg.from)?.displayName}: {replyMsg.text}</div>}
+                <div style={{display:"flex",alignItems:"flex-end",gap:8,flexDirection:isMe?"row-reverse":"row"}}>
+                  <div style={{width:28,flexShrink:0}}>{!isMe&&showAv&&<Av user={sender} size={28}/>}</div>
+                  <div style={{maxWidth:"70%"}}>
+                    {showAv&&!isMe&&<div style={{fontSize:11,color:T.muted,marginBottom:3,paddingLeft:2}}>{sender?.displayName}</div>}
+                    <div style={{background:isMe?T.bMe:T.bThm,color:isMe?T.bMeTxt:T.bThmTxt,padding:"9px 13px",borderRadius:isMe?"18px 18px 4px 18px":"18px 18px 18px 4px",fontSize:14,lineHeight:1.5,wordBreak:"break-word",cursor:"pointer",border:incog&&!isMe?"1px solid #ffb3d170":"none"}} onClick={()=>setReplyTo(m.id)} title="Reply">
+                      {m.incog&&<span style={{marginRight:5,fontSize:11}}>⏱</span>}{m.text}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:4,marginTop:3,justifyContent:isMe?"flex-end":"flex-start"}}>
+                      <span style={{fontSize:10,color:T.muted}}>{tfmt(m.ts)}</span>
+                      {isMe&&<span style={{fontSize:10,color:m.seen?T.acc:T.muted}}>{m.seen?"👁 Seen":"✓"}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {aiLoad&&<div style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0"}}>
+            <Av user={AI_BOT} size={28}/>
+            <div style={{background:"#1e2535",borderRadius:"18px 18px 18px 4px",padding:"10px 14px",display:"flex",gap:5,alignItems:"center"}}>
+              {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:"#4facfe",animation:"pulse 1.2s infinite",animationDelay:`${i*.2}s`}}/>)}
+            </div>
+          </div>}
+          <div ref={msgEnd}/>
+        </div>
+        {replyTo&&<div style={{padding:"6px 12px",background:T.hdr,borderTop:`1px solid ${T.bdr}`,display:"flex",alignItems:"center",gap:8}}>
+          <div style={{flex:1,fontSize:12,color:T.muted,borderLeft:`2px solid ${T.acc}`,paddingLeft:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>↩ {convList.find(m=>m.id===replyTo)?.text}</div>
+          <button onClick={()=>setReplyTo(null)} style={{background:"none",border:"none",color:T.muted,cursor:"pointer",fontSize:18}}>×</button>
+        </div>}
+        <div style={{padding:"10px 12px",background:T.hdr,borderTop:`1px solid ${T.bdr}`,display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+          {incog&&<span style={{fontSize:18}}>👻</span>}
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendMsg()}
+            placeholder={incog?"Ghost message (self-destructs on view)…":"Type a message…"}
+            style={{flex:1,background:T.inp,border:`1px solid ${T.bdr}`,borderRadius:24,padding:"10px 16px",color:T.txt,fontSize:14,fontFamily:"Jost,sans-serif",outline:"none",transition:"border-color .2s"}}
+            onFocus={e=>e.target.style.borderColor=T.acc} onBlur={e=>e.target.style.borderColor=T.bdr}/>
+          <button onClick={sendMsg} style={{width:42,height:42,borderRadius:"50%",background:incog?"linear-gradient(135deg,#ff85c2,#ff69b4)":"linear-gradient(135deg,#4facfe,#00f2fe)",border:"none",cursor:"pointer",fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>↑</button>
+        </div>
+        {/* ── INCOMING CALL ── */}
+        {incomingCall&&!callUI&&<div style={{position:"fixed",bottom:24,right:24,background:"#0e1219",borderRadius:20,padding:"20px 24px",border:"1px solid #2ed57340",boxShadow:"0 8px 40px #000a",zIndex:500,minWidth:280,animation:"fadeIn .2s"}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+            <div style={{position:"relative"}}>
+              <Av user={getU(incomingCall.from)} size={52}/>
+              <div style={{position:"absolute",inset:-4,borderRadius:"50%",border:"2px solid #2ed573",animation:"ring 1s infinite"}}/>
+            </div>
+            <div>
+              <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:16}}>{getU(incomingCall.from)?.displayName}</div>
+              <div style={{color:"#6b7299",fontSize:13,marginTop:2}}>{incomingCall.type==="video"?"📹 Incoming Video Call":"📞 Incoming Voice Call"}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:12}}>
+            <button onClick={answerCall} style={{flex:1,background:"#2ed573",border:"none",borderRadius:12,color:"#07090f",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:15,padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              {incomingCall.type==="video"?"📹":"📞"} Answer
+            </button>
+            <button onClick={declineCall} style={{flex:1,background:"#ff4757",border:"none",borderRadius:12,color:"#fff",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:15,padding:"12px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              📵 Decline
+            </button>
+          </div>
+        </div>}
+
+        {/* ── ACTIVE/CALLING CALL UI ── */}
+        {callUI&&<div style={{position:"fixed",inset:0,background:callUI.type==="video"?"#0a0a0a":"linear-gradient(180deg,#1a1d2e,#07090f)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",zIndex:400}}>
+          {/* Video feeds */}
+          {callUI.type==="video"&&callUI.state==="active"&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {/* Remote feed placeholder */}
+            <div style={{width:"100%",height:"100%",background:"#111",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:12}}>
+              <Av user={getU(callUI.peer)} size={100}/>
+              <div style={{color:"#6b7299",fontSize:14,fontFamily:"Jost,sans-serif"}}>{getU(callUI.peer)?.displayName}'s camera</div>
+            </div>
+            {/* Self preview - bottom right */}
+            {callStream&&callStream.getVideoTracks().length>0&&!callCamOff&&<div style={{position:"absolute",bottom:100,right:20,width:120,height:160,background:"#222",borderRadius:12,border:"2px solid #ffffff20",overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <div style={{color:"#6b7299",fontSize:11,textAlign:"center",padding:8}}>📷 You</div>
+            </div>}
+          </div>}
+
+          {/* Center info */}
+          <div style={{textAlign:"center",zIndex:10}}>
+            <div style={{position:"relative",display:"inline-block",marginBottom:20}}>
+              <Av user={getU(callUI.peer)} size={callUI.state==="calling"?100:80} sx={{margin:"0 auto"}}/>
+              {callUI.state==="calling"&&<>
+                <div style={{position:"absolute",inset:-8,borderRadius:"50%",border:"2px solid #4facfe40",animation:"ring 1.2s infinite"}}/>
+                <div style={{position:"absolute",inset:-16,borderRadius:"50%",border:"2px solid #4facfe20",animation:"ring 1.2s infinite",animationDelay:".4s"}}/>
+              </>}
+            </div>
+            <div style={{fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:24,color:"#e8eaf0",marginBottom:8}}>{getU(callUI.peer)?.displayName}</div>
+            <div style={{fontSize:14,color:callUI.state==="calling"?"#4facfe":"#2ed573",fontFamily:"Oxanium,monospace",marginBottom:4}}>
+              {callUI.state==="calling"?"Ringing…":callUI.type==="video"?"Video Call":"Voice Call"}
+            </div>
+            {callUI.state==="active"&&<div style={{fontSize:16,color:"#e8eaf0",fontFamily:"Oxanium,monospace",letterSpacing:2}}>{fmtT(callSec)}</div>}
+          </div>
+
+          {/* Controls */}
+          <div style={{position:"absolute",bottom:40,display:"flex",gap:20,alignItems:"center"}}>
+            {callUI.state==="active"&&<>
+              <button onClick={toggleMute} title={callMuted?"Unmute":"Mute"}
+                style={{width:56,height:56,borderRadius:"50%",background:callMuted?"#ff4757":"#2a2f45",border:"none",cursor:"pointer",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+                {callMuted?"🔇":"🎤"}
+              </button>
+              {callUI.type==="video"&&<button onClick={toggleCam} title={callCamOff?"Turn Camera On":"Turn Camera Off"}
+                style={{width:56,height:56,borderRadius:"50%",background:callCamOff?"#ff4757":"#2a2f45",border:"none",cursor:"pointer",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center",transition:"all .2s"}}>
+                {callCamOff?"📷":"📸"}
+              </button>}
+              <button title="Share Screen"
+                style={{width:56,height:56,borderRadius:"50%",background:"#2a2f45",border:"none",cursor:"pointer",fontSize:22,display:"flex",alignItems:"center",justifyContent:"center"}}
+                onClick={()=>showT("Screen sharing coming soon!","info")}>
+                🖥
+              </button>
+            </>}
+            {/* End call - always shown */}
+            <button onClick={endCall}
+              style={{width:66,height:66,borderRadius:"50%",background:"#ff4757",border:"none",cursor:"pointer",fontSize:26,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 20px #ff475760",transition:"transform .15s"}}
+              onMouseEnter={e=>e.currentTarget.style.transform="scale(1.1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>
+              📵
+            </button>
+          </div>
+        </div>}
+        {toast&&<Toast {...toast}/>}
+      </div>
+    );
+  }
+
+
+  /* ── SERVER MODAL (inline, not a component, to prevent blinking) ── */
+  const _smF=mForm,_smSF=setMForm;
+  const _smGrads=["linear-gradient(135deg,#4facfe,#00f2fe)","linear-gradient(135deg,#43e97b,#38f9d7)","linear-gradient(135deg,#fa709a,#fee140)","linear-gradient(135deg,#f093fb,#f5576c)","linear-gradient(135deg,#667eea,#764ba2)","linear-gradient(135deg,#30cfd0,#330867)","linear-gradient(135deg,#ffa502,#ff6348)","linear-gradient(135deg,#2ed573,#1e90ff)"];
+  const _smS=curSrv?getSrv(curSrv):null;
+  const _smTitle={"create-server":"Create a Server","join-server":"Join by Invite","server-settings":"Server Settings","add-channel":"Add Channel","add-category":"Add Category","add-role":"Add Role","invite":"Invite People","members":"Members","bans":"Bans","roles":"Roles"}[sModal]||sModal;
+  const srvModalJSX=sModal?(
+      <div onClick={e=>{if(e.target===e.currentTarget)setSModal(null);}} style={{position:"fixed",inset:0,background:"#000000b0",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:16}}>
+        <div style={{background:"#0e1219",borderRadius:16,padding:28,width:"100%",maxWidth:440,border:"1px solid #1e2535",maxHeight:"85vh",overflowY:"auto",animation:"fadeIn .18s"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:22}}>
+            <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:18,color:"#e8eaf0"}}>{_smTitle}</div>
+            <button onClick={()=>setSModal(null)} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:22,lineHeight:1}}>×</button>
+          </div>
+
+          {sModal==="create-server"&&<>
+            <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+              {_smGrads.map((g,i)=><div key={i} onClick={()=>_smSF(p=>({...p,grad:g}))} style={{width:32,height:32,borderRadius:"50%",background:g,cursor:"pointer",border:_smF.grad===g?"3px solid #fff":"3px solid transparent",transition:"border .15s"}}/>)}
+            </div>
+            <div style={{width:64,height:64,borderRadius:"50%",background:_smF.grad,margin:"0 auto 18px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,color:"#fff",fontFamily:"Oxanium,monospace",fontWeight:800}}>{_smF.name?_smF.name[0].toUpperCase():"?"}</div>
+            <Field label="Server Name *" value={_smF.name} onChange={v=>_smSF(p=>({...p,name:v}))} placeholder="My Awesome Server"/>
+            <Btn onClick={()=>{if(!_smF.name.trim()){showT("Server name required.","warn");return;}createSrv(_smF.name.trim(),_smF.grad);setSModal(null);}} full>Create Server 🚀</Btn>
+          </>}
+
+          {sModal==="join-server"&&<>
+            <Field label="Invite Code" value={_smF.code} onChange={v=>_smSF(p=>({...p,code:v}))} placeholder="e.g. tecode-hq"/>
+            <Btn onClick={()=>{const foundSrv=servers.find(sv=>sv.invites.some(i=>i.code===_smF.code.trim()));if(!foundSrv){showT("Invalid invite code.","error");return;}joinSrv(foundSrv.id);setSModal(null);setCurSrv(foundSrv.id);const fc=foundSrv.cats[0]?.chs.find(ch=>ch.type==="text");setCurCh(fc?.id||null);setView("server");}} full>Join Server</Btn>
+            {servers.filter(sv=>sv.isPublic).length>0&&<div style={{marginTop:18}}>
+              <div style={{fontSize:12,color:"#4b5273",marginBottom:10,fontFamily:"Oxanium,monospace",letterSpacing:1}}>PUBLIC INVITE CODES</div>
+              {servers.filter(sv=>sv.isPublic).map(sv=>sv.invites.map(inv=><div key={inv.code} style={{background:"#161c28",borderRadius:8,padding:"8px 12px",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div><div style={{color:"#e8eaf0",fontSize:14,fontWeight:600}}>{sv.name}</div><div style={{color:"#4b5273",fontSize:12}}>{inv.code}</div></div>
+                <Btn onClick={()=>{_smSF(p=>({...p,code:inv.code}));}} v="ghost" sm>Use</Btn>
+              </div>))}
+            </div>}
+          </>}
+
+          {sModal==="server-settings"&&_smS&&<>
+            {/* Server icon / banner preview */}
+            <div style={{height:90,borderRadius:12,background:_smF.srvIcon?"none":_smF.grad,backgroundImage:_smF.srvIcon?`url(${_smF.srvIcon})`:"none",backgroundSize:"cover",backgroundPosition:"center",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",overflow:"hidden"}}>
+              {!_smF.srvIcon&&<div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"center",padding:8}}>
+                {_smGrads.map((g,i)=><div key={i} onClick={()=>_smSF(p=>({...p,grad:g}))} style={{width:26,height:26,borderRadius:"50%",background:g,cursor:"pointer",border:_smF.grad===g?"3px solid #fff":"3px solid transparent",transition:"border .15s"}}/>)}
+              </div>}
+              {_smF.srvIcon&&<div style={{position:"absolute",inset:0,background:"#00000050",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <button onClick={()=>_smSF(p=>({...p,srvIcon:null}))} style={{background:"#ff4757",border:"none",borderRadius:8,color:"#fff",padding:"6px 14px",cursor:"pointer",fontSize:12,fontFamily:"Oxanium,monospace"}}>Remove Image</button>
+              </div>}
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:"#6b7299",marginBottom:6}}>Server Icon / Banner</div>
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                <label style={{background:"#1e2535",border:"1px solid #252a3d",borderRadius:8,padding:"8px 14px",cursor:"pointer",color:"#4facfe",fontSize:13,fontFamily:"Oxanium,monospace",fontWeight:700}}>
+                  📷 Upload Picture
+                  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=ev=>_smSF(p=>({...p,srvIcon:ev.target.result}));r.readAsDataURL(f);}}}/>
+                </label>
+                <span style={{color:"#4b5273",fontSize:12}}>or pick a gradient above</span>
+              </div>
+            </div>
+            <Field label="Server Name" value={_smF.name} onChange={v=>_smSF(p=>({...p,name:v}))} placeholder={_smS?.name}/>
+            <Field label="Description" type="textarea" value={_smF.desc} onChange={v=>_smSF(p=>({...p,desc:v}))} placeholder="What is this server about?"/>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:"#6b7299",marginBottom:6}}>Visibility</div>
+              <div style={{display:"flex",gap:10}}>
+                <Btn onClick={()=>_smSF(p=>({...p,pub:true}))} v={_smF.pub===true?"primary":"muted"} sm>🌍 Public</Btn>
+                <Btn onClick={()=>_smSF(p=>({...p,pub:false}))} v={_smF.pub===false?"primary":"muted"} sm>🔒 Private</Btn>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:10,marginTop:8}}>
+              <Btn onClick={()=>{updateSrv(_smS?.id,{name:_smF.name||_smS?.name,desc:_smF.desc,iconGrad:_smF.grad,icon:_smF.srvIcon,isPublic:_smF.pub!==undefined?_smF.pub:_smS?.isPublic});setSModal(null);showT("Settings saved!","success");}} full>Save Changes</Btn>
+              <Btn onClick={()=>{if(!window.confirm("Delete this server? Cannot be undone."))return;setServers(p=>p.filter(sv=>sv.id!==_smS?.id));setCurSrv(null);setCurCh(null);setView("servers");setSModal(null);showT("Server deleted.","info");}} v="danger">Delete</Btn>
+            </div>
+          </>}
+
+          {sModal==="invite"&&_smS&&<>
+            <div style={{fontSize:13,color:"#6b7299",marginBottom:14}}>Share an invite code so others can join.</div>
+            {_smS?.invites?.map((inv,i)=>(
+              <div key={i} style={{background:"#161c28",borderRadius:10,padding:"12px 14px",marginBottom:10,border:"1px solid #252a3d"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{color:"#4facfe",fontFamily:"Oxanium,monospace",fontWeight:700,fontSize:15}}>{inv.code}</span>
+                  <Btn onClick={()=>{navigator.clipboard?.writeText(inv.code).then(()=>showT("Copied!","success")).catch(()=>showT(inv.code,"info"));}} v="ghost" sm>Copy</Btn>
+                </div>
+                <div style={{fontSize:12,color:"#4b5273"}}>{inv.uses} uses · {inv.maxUses>0?`max ${inv.maxUses}`:"unlimited"} · {inv.expires?"expires soon":"never expires"}</div>
+              </div>
+            ))}
+            <Btn onClick={()=>{const code=_smS?.name?.toLowerCase().replace(/ /g,"-")+"-"+uid().slice(0,5);setServers(p=>p.map(sv=>sv.id===_smS?.id?{...sv,invites:[...sv.invites,{code,uses:0,maxUses:0,expires:null}]}:sv));showT("New invite created!","success");}} v="ghost" full>+ New Invite Link</Btn>
+          </>}
+
+          {sModal==="add-channel"&&_smS&&<>
+            <Field label="Channel Name" value={_smF.chName} onChange={v=>_smSF(p=>({...p,chName:v}))} placeholder="new-channel"/>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:"#6b7299",marginBottom:8}}>Channel Type</div>
+              <div style={{display:"flex",gap:10}}>
+                <Btn onClick={()=>_smSF(p=>({...p,chType:"text"}))} v={_smF.chType==="text"?"primary":"muted"} sm># Text Channel</Btn>
+                <Btn onClick={()=>_smSF(p=>({...p,chType:"voice"}))} v={_smF.chType==="voice"?"primary":"muted"} sm>🔊 Voice Channel</Btn>
+              </div>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:"#6b7299",marginBottom:8}}>Category</div>
+              <select value={_smF.catId||_smS?.cats[0]?.id} onChange={e=>_smSF(p=>({...p,catId:e.target.value}))} style={{width:"100%",padding:"11px 14px",background:"#07090f",border:"1px solid #252a3d",borderRadius:8,color:"#e8eaf0",fontSize:14,outline:"none"}}>
+                {_smS?.cats?.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+            <Btn onClick={()=>{if(!_smF.chName.trim()){showT("Channel name required.","warn");return;}addCh(_smS?.id,_smF.catId||_smS?.cats[0]?.id,_smF.chName.trim(),_smF.chType);setSModal(null);}} full>Create Channel</Btn>
+          </>}
+
+          {sModal==="add-category"&&_smS&&<>
+            <Field label="Category Name" value={_smF.catName} onChange={v=>_smSF(p=>({...p,catName:v}))} placeholder="NEW CATEGORY"/>
+            <Btn onClick={()=>{if(!_smF.catName.trim()){showT("Name required.","warn");return;}addCat(_smS?.id,_smF.catName.trim());setSModal(null);}} full>Create Category</Btn>
+          </>}
+
+          {sModal==="roles"&&_smS&&<>
+            <div style={{marginBottom:16}}>
+              {_smS?.roles?.map(r=>(
+                <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#161c28",borderRadius:8,marginBottom:8,border:"1px solid #252a3d"}}>
+                  <div style={{width:14,height:14,borderRadius:"50%",background:r.color,flexShrink:0}}/>
+                  <span style={{flex:1,color:"#e8eaf0",fontWeight:600,fontSize:14}}>{r.name}</span>
+                  <span style={{fontSize:12,color:"#4b5273"}}>{_smS?.members?.filter(m=>m.roleId===r.id).length} members</span>
+                </div>
+              ))}
+            </div>
+            {hasPerm(_smS,"all")&&<><div style={{borderTop:"1px solid #1e2535",paddingTop:16,fontFamily:"Oxanium,monospace",fontSize:12,color:"#4b5273",marginBottom:12}}>CREATE NEW ROLE</div>
+            <Field label="Role Name" value={_smF.roleName} onChange={v=>_smSF(p=>({...p,roleName:v}))} placeholder="e.g. VIP"/>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:"#6b7299",marginBottom:6}}>Role Color</div>
+              <input type="color" value={_smF.roleColor} onChange={e=>_smSF(p=>({...p,roleColor:e.target.value}))} style={{width:48,height:32,border:"none",background:"none",cursor:"pointer"}}/>
+            </div>
+            <Btn onClick={()=>{if(!_smF.roleName.trim()){showT("Role name required.","warn");return;}addRole(_smS?.id,_smF.roleName.trim(),_smF.roleColor);setSModal(null);}} full>Create Role</Btn></>}
+          </>}
+
+          {sModal==="add-role"&&_smS&&<>
+            <Field label="Role Name" value={_smF.roleName} onChange={v=>_smSF(p=>({...p,roleName:v}))} placeholder="e.g. VIP"/>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,color:"#6b7299",marginBottom:6}}>Color</div>
+              <input type="color" value={_smF.roleColor} onChange={e=>_smSF(p=>({...p,roleColor:e.target.value}))} style={{width:48,height:32,border:"none",background:"none",cursor:"pointer"}}/>
+            </div>
+            <Btn onClick={()=>{if(!_smF.roleName.trim()){showT("Name required.","warn");return;}addRole(_smS?.id,_smF.roleName.trim(),_smF.roleColor);setSModal(null);}} full>Create Role</Btn>
+          </>}
+
+          {sModal==="members"&&_smS&&<>
+            <div style={{marginBottom:12}}><Field value={_smF.search||""} onChange={v=>_smSF(p=>({...p,search:v}))} placeholder="Search members…"/></div>
+            {_smS?.members?.filter(m=>!_smF.search||getU(m.userId)?.displayName?.toLowerCase().includes(_smF.search.toLowerCase())||getU(m.userId)?.username?.includes(_smF.search)).map(m=>{
+              const u=getU(m.userId);const role=_smS?.roles?.find(r=>r.id===m.roleId);
+              return(
+                <div key={m.userId} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#161c28",borderRadius:8,marginBottom:8}}>
+                  <Av user={u} size={36}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{color:"#e8eaf0",fontWeight:600,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.nick||u?.displayName}</div>
+                    <div style={{fontSize:12,color:"#4b5273"}}>@{u?.username}</div>
+                  </div>
+                  {role&&<span style={{fontSize:11,background:role.color+"25",color:role.color,borderRadius:4,padding:"2px 7px",fontWeight:700,flexShrink:0}}>{role.name}</span>}
+                  {hasPerm(_smS,"kick")&&m.userId!==me.id&&m.userId!==_smS?.ownerId&&<div style={{display:"flex",gap:4}}>
+                    <select value={m.roleId} onChange={e=>assignRole(_smS?.id,m.userId,e.target.value)} style={{background:"#252a3d",border:"none",color:"#e8eaf0",borderRadius:6,padding:"4px 6px",fontSize:12,cursor:"pointer"}}>
+                      {_smS?.roles?.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                    <Btn onClick={()=>{kickM(_smS?.id,m.userId);showT("Kicked "+u?.displayName,"info");}} v="danger" sm>Kick</Btn>
+                    <Btn onClick={()=>{banM(_smS?.id,m.userId);showT("Banned "+u?.displayName,"success");}} v="danger" sm>Ban</Btn>
+                  </div>}
+                </div>
+              );
+            })}
+          </>}
+
+          {sModal==="bans"&&_smS&&<>
+            {_smS?.bans?.length===0?<div style={{color:"#4b5273",textAlign:"center",padding:"20px 0"}}>No bans.</div>:_smS?.bans?.map(bid=>{const u=getU(bid);return(
+              <div key={bid} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#161c28",borderRadius:8,marginBottom:8}}>
+                <Av user={u} size={36}/>
+                <div style={{flex:1}}><div style={{color:"#e8eaf0",fontWeight:600,fontSize:14}}>{u?.displayName||bid}</div></div>
+                <Btn onClick={()=>{unbanM(_smS?.id,bid);showT("Unbanned.","success");}} v="success" sm>Unban</Btn>
+              </div>
+            );})}
+          </>}
+        </div>
+      </div>
+
+  ):null;
+
+
+  /* ── RENDER: SERVER LIST ── */
+  if(view==="servers"){
+    const ms=myServs();const pub=servers.filter(s=>s.isPublic&&!s.members.some(m=>m.userId===me.id));
+    return(
+      <div style={{display:"flex",height:"100vh",background:"#07090f",fontFamily:"Jost,sans-serif",overflow:"hidden"}}>
+        {/* Server icon rail */}
+        <div style={{width:72,background:"#0a0c14",borderRight:"1px solid #1a1f2e",display:"flex",flexDirection:"column",alignItems:"center",padding:"12px 0",gap:8,overflowY:"auto",flexShrink:0}}>
+          <div title="Dashboard" onClick={()=>setView("dashboard")} style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#4facfe,#00f2fe)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginBottom:4,fontSize:20}}>🏠</div>
+          <div style={{width:32,height:2,background:"#252a3d",borderRadius:1,marginBottom:4}}/>
+          {ms.map(s=>{const active=curSrv===s.id;return(
+            <div key={s.id} title={s.name} onClick={()=>{setCurSrv(s.id);const fc=s.cats[0]?.chs.find(ch=>ch.type==="text");setCurCh(fc?.id||null);setView("server");setSrvPanel("chat");}}
+              style={{width:48,height:48,borderRadius:active?"30%":"50%",background:s.iconGrad,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:16,color:"#fff",transition:"border-radius .2s",boxShadow:active?"0 0 0 3px #4facfe":"none",flexShrink:0}}>
+              {s.icon?<img src={s.icon} style={{width:"100%",height:"100%",borderRadius:"inherit",objectFit:"cover"}}/>:s.name[0].toUpperCase()}
+            </div>
+          );})}
+          <div title="Create Server" onClick={()=>setSModal("create-server")} style={{width:48,height:48,borderRadius:"50%",background:"#1e2535",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:24,color:"#4facfe",marginTop:4,transition:"border-radius .2s,background .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderRadius="30%";e.currentTarget.style.background="#4facfe20";}} onMouseLeave={e=>{e.currentTarget.style.borderRadius="50%";e.currentTarget.style.background="#1e2535";}}>+</div>
+        </div>
+        {/* Main */}
+        <div style={{flex:1,overflowY:"auto",padding:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:28}}>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:22,color:"#e8eaf0"}}>Servers</div>
+              <div style={{color:"#4b5273",fontSize:13,marginTop:2}}>Your communities</div>
+            </div>
+            <Btn onClick={()=>setSModal("create-server")} v="primary" sm>+ Create Server</Btn>
+            <Btn onClick={()=>setSModal("join-server")} v="ghost" sm>Join by Invite</Btn>
+          </div>
+          {ms.length===0&&<div style={{textAlign:"center",color:"#3d4460",marginTop:60,fontFamily:"Oxanium,monospace"}}><div style={{fontSize:52,marginBottom:12}}>🌐</div><div style={{fontSize:18,fontWeight:700}}>No servers yet</div><div style={{fontSize:13,marginTop:6}}>Create or join a server to get started</div></div>}
+          {ms.length>0&&<><div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#6b7299",fontSize:12,letterSpacing:1.5,marginBottom:12}}>MY SERVERS — {ms.length}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14,marginBottom:32}}>
+            {ms.map(s=>{const mem=s.members.find(m=>m.userId===me.id);const role=s.roles.find(r=>r.id===mem?.roleId);return(
+              <div key={s.id} style={{background:"#0e1219",border:"1px solid #1e2535",borderRadius:14,overflow:"hidden",cursor:"pointer",transition:"border-color .2s,transform .2s"}} onClick={()=>{setCurSrv(s.id);const fc=s.cats[0]?.chs.find(ch=>ch.type==="text");setCurCh(fc?.id||null);setView("server");setSrvPanel("chat");}} onMouseEnter={e=>{e.currentTarget.style.borderColor="#4facfe30";e.currentTarget.style.transform="translateY(-2px)";}} onMouseLeave={e=>{e.currentTarget.style.borderColor="#1e2535";e.currentTarget.style.transform="none";}}>
+                <div style={{height:80,background:s.icon?"none":s.iconGrad,backgroundImage:s.icon?`url(${s.icon})`:"",backgroundSize:"cover",backgroundPosition:"center",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,fontFamily:"Oxanium,monospace",fontWeight:800,color:"#fff"}}>{!s.icon&&s.name[0]}</div>
+                <div style={{padding:"14px 16px"}}>
+                  <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:16,marginBottom:3}}>{s.name}</div>
+                  <div style={{color:"#4b5273",fontSize:12,marginBottom:8}}>{s.members.length} members · {s.cats.reduce((a,c)=>a+c.chs.length,0)} channels</div>
+                  {s.desc&&<div style={{color:"#6b7299",fontSize:13,marginBottom:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.desc}</div>}
+                  {role&&<span style={{fontSize:11,background:role.color+"20",color:role.color,border:`1px solid ${role.color}30`,borderRadius:4,padding:"2px 8px",fontWeight:700}}>{role.name}</span>}
+                </div>
+              </div>
+            );})}
+          </div></>}
+          {pub.length>0&&<><div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#6b7299",fontSize:12,letterSpacing:1.5,marginBottom:12}}>DISCOVER SERVERS — {pub.length}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:14}}>
+            {pub.map(s=>(
+              <div key={s.id} style={{background:"#0e1219",border:"1px solid #1e2535",borderRadius:14,overflow:"hidden"}}>
+                <div style={{height:70,background:s.iconGrad}}/>
+                <div style={{padding:"14px 16px"}}>
+                  <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:15,marginBottom:3}}>{s.name}</div>
+                  <div style={{color:"#4b5273",fontSize:12,marginBottom:8}}>{s.members.length} members</div>
+                  {s.desc&&<div style={{color:"#6b7299",fontSize:13,marginBottom:10}}>{s.desc}</div>}
+                  <Btn onClick={()=>joinSrv(s.id)} v="primary" sm full>Join Server</Btn>
+                </div>
+              </div>
+            ))}
+          </div></>}
+        </div>
+        {/* Modals */}
+        {srvModalJSX}
+        {toast&&<Toast {...toast}/>}
+      </div>
+    );
+  }
+
+  /* ── SERVER MODAL ── */
+    /* ── RENDER: SERVER VIEW ── */
+  if(view==="server"&&curSrv){
+    const s=getSrv(curSrv);if(!s)return null;
+    const allChs=s.cats.flatMap(c=>c.chs);
+    const ch=allChs.find(c=>c.id===curCh);
+    const key=ch?chKey(s.id,ch.id):"";
+    const chMsgs=key?(sMsgs[key]||[]):[];
+    const mob=isMobile();
+    const myRole=srvRole(s,me.id);
+    const pinnedMsgs=chMsgs.filter(m=>m.pinned);
+
+    return(
+      <div style={{display:"flex",height:"100vh",background:"#07090f",fontFamily:"Jost,sans-serif",overflow:"hidden",position:"relative"}} onClick={()=>ctxMenu&&setCtxMenu(null)}>
+        {/* Context menu */}
+        {ctxMenu&&<div style={{position:"fixed",left:ctxMenu.x,top:ctxMenu.y,background:"#161c28",borderRadius:10,padding:"6px",border:"1px solid #252a3d",zIndex:300,minWidth:160,boxShadow:"0 8px 32px #000a"}}>
+          {ctxMenu.type==="msg"&&<>
+            <div onClick={()=>{setSReplyTo(ctxMenu.id);setCtxMenu(null);}} style={{padding:"8px 12px",color:"#e8eaf0",cursor:"pointer",borderRadius:6,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background="#252a3d"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>↩ Reply</div>
+            <div onClick={()=>{toggleReact(key,ctxMenu.id,"👍");setCtxMenu(null);}} style={{padding:"8px 12px",color:"#e8eaf0",cursor:"pointer",borderRadius:6,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background="#252a3d"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>👍 React</div>
+            <div onClick={()=>{toggleReact(key,ctxMenu.id,"❤️");setCtxMenu(null);}} style={{padding:"8px 12px",color:"#e8eaf0",cursor:"pointer",borderRadius:6,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background="#252a3d"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>❤️ React</div>
+            <div onClick={()=>{toggleReact(key,ctxMenu.id,"🔥");setCtxMenu(null);}} style={{padding:"8px 12px",color:"#e8eaf0",cursor:"pointer",borderRadius:6,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background="#252a3d"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🔥 React</div>
+            {hasPerm(s,"all")&&<div onClick={()=>{pinMsg(key,ctxMenu.id);setCtxMenu(null);}} style={{padding:"8px 12px",color:"#e8eaf0",cursor:"pointer",borderRadius:6,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background="#252a3d"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>📌 {chMsgs.find(m=>m.id===ctxMenu.id)?.pinned?"Unpin":"Pin"}</div>}
+            {(ctxMenu.from===me.id||hasPerm(s,"all"))&&<div onClick={()=>{delMsg(key,ctxMenu.id);setCtxMenu(null);}} style={{padding:"8px 12px",color:"#ff6b7a",cursor:"pointer",borderRadius:6,fontSize:13}} onMouseEnter={e=>e.currentTarget.style.background="#ff475718"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🗑 Delete</div>}
+          </>}
+        </div>}
+
+        {/* Server icon rail */}
+        <div style={{width:72,background:"#0a0c14",borderRight:"1px solid #1a1f2e",display:"flex",flexDirection:"column",alignItems:"center",padding:"10px 0",gap:8,flexShrink:0,overflowY:"auto"}}>
+          <div title="All Servers" onClick={()=>{setView("servers");setSrvPanel("chat");}} style={{width:48,height:48,borderRadius:"50%",background:"linear-gradient(135deg,#4facfe,#00f2fe)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginBottom:4,fontSize:18}} title="Servers">🌐</div>
+          <div style={{width:32,height:2,background:"#252a3d",borderRadius:1,marginBottom:4}}/>
+          {myServs().map(sv=>{const active=sv.id===s.id;return(
+            <div key={sv.id} title={sv.name} onClick={()=>{setCurSrv(sv.id);const fc=sv.cats[0]?.chs.find(c=>c.type==="text");setCurCh(fc?.id||null);setSrvPanel("chat");}}
+              style={{width:48,height:48,borderRadius:active?"30%":"50%",background:sv.iconGrad,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:16,color:"#fff",transition:"border-radius .2s",boxShadow:active?"0 0 0 3px #4facfe":"none",flexShrink:0}}>
+              {sv.icon?<img src={sv.icon} style={{width:"100%",height:"100%",borderRadius:"inherit",objectFit:"cover"}}/>:sv.name[0].toUpperCase()}
+            </div>
+          );})}
+          <div title="Create Server" onClick={()=>setSModal("create-server")} style={{width:48,height:48,borderRadius:"50%",background:"#1e2535",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:22,color:"#4facfe",marginTop:4,transition:"border-radius .2s,background .15s"}} onMouseEnter={e=>{e.currentTarget.style.borderRadius="30%";e.currentTarget.style.background="#4facfe20";}} onMouseLeave={e=>{e.currentTarget.style.borderRadius="50%";e.currentTarget.style.background="#1e2535";}}>+</div>
+          <div title="Dashboard" onClick={()=>setView("dashboard")} style={{width:48,height:48,borderRadius:"50%",background:"#1e2535",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:18,color:"#6b7299",marginTop:"auto",marginBottom:8,transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="#252a3d"} onMouseLeave={e=>e.currentTarget.style.background="#1e2535"}>🏠</div>
+        </div>
+
+        {/* Overlay when sidebar open on mobile */}
+        {mob&&srvSidebar&&<div onClick={()=>setSrvSidebar(false)} style={{position:"fixed",inset:0,background:"#000000a0",zIndex:48}}/>}
+        {/* Channel sidebar - always in DOM, slides in/out on mobile */}
+        <div style={{position:mob?"fixed":"relative",left:mob?0:undefined,top:mob?0:undefined,bottom:mob?0:undefined,zIndex:50,width:240,background:"#0d1017",borderRight:"1px solid #1a1f2e",display:"flex",flexDirection:"column",flexShrink:0,transform:mob?(srvSidebar?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform .25s cubic-bezier(.4,0,.2,1)",boxShadow:mob&&srvSidebar?"4px 0 24px #000a":"none"}}>
+          {/* Server header */}
+          <div style={{padding:"0 16px",height:50,borderBottom:"1px solid #1a1f2e",display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",flexShrink:0}} onClick={()=>hasPerm(s,"all")&&setSModal("server-settings")}>
+            <div style={{fontFamily:"Oxanium,monospace",fontWeight:800,fontSize:15,color:"#e8eaf0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.name}</div>
+            {hasPerm(s,"all")&&<span style={{color:"#6b7299",fontSize:16}}>⚙</span>}
+          </div>
+          {/* Channels */}
+          <div style={{flex:1,overflowY:"auto",padding:"8px 0"}}>
+            {s.cats.map(cat=>(
+              <div key={cat.id}>
+                <div style={{padding:"10px 16px 4px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontSize:11,color:"#4b5273",fontFamily:"Oxanium,monospace",fontWeight:700,letterSpacing:1}}>{cat.name}</span>
+                  {hasPerm(s,"all")&&<span onClick={()=>{setSModal("add-channel");}} style={{color:"#4b5273",cursor:"pointer",fontSize:16,lineHeight:1}} title="Add channel">+</span>}
+                </div>
+                {cat.chs.map(c=>(
+                  <div key={c.id} onClick={()=>{if(c.type==="voice"){showT("Joined "+c.name+" 🔊","info");return;}setCurCh(c.id);setSrvPanel("chat");if(mob)setSrvSidebar(false);}}
+                    style={{padding:"6px 16px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:curCh===c.id?"#1e2535":"transparent",borderRadius:"0 6px 6px 0",marginRight:8,transition:"background .12s",color:curCh===c.id?"#e8eaf0":"#6b7299",fontSize:14}}
+                    onMouseEnter={e=>{if(curCh!==c.id)e.currentTarget.style.background="#161c28";}} onMouseLeave={e=>{if(curCh!==c.id)e.currentTarget.style.background="transparent";}}>
+                    <span style={{fontSize:13,color:"#4b5273",flexShrink:0}}>{c.type==="voice"?"🔊":"#"}</span>
+                    <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                    {c.ro&&<span style={{fontSize:10,color:"#4b5273"}} title="Read-only">🔒</span>}
+                    {hasPerm(s,"all")&&<span onClick={e=>{e.stopPropagation();delCh(s.id,c.id);}} style={{color:"#4b5273",fontSize:13,opacity:0,transition:"opacity .15s"}} title="Delete channel"
+                      onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=0}>✕</span>}
+                  </div>
+                ))}
+              </div>
+            ))}
+            {hasPerm(s,"all")&&<div onClick={()=>setSModal("add-category")} style={{padding:"8px 16px",color:"#4b5273",fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:6}} onMouseEnter={e=>e.currentTarget.style.color="#6b7299"} onMouseLeave={e=>e.currentTarget.style.color="#4b5273"}>+ Add Category</div>}
+          </div>
+          {/* Bottom bar */}
+          <div style={{padding:"8px 12px",borderTop:"1px solid #1a1f2e",display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+            <div style={{position:"relative",flexShrink:0}}><Av user={me} size={32}/><div style={{position:"absolute",bottom:0,right:0,width:9,height:9,borderRadius:"50%",background:"#2ed573",border:"2px solid #0d1017"}}/></div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{color:"#e8eaf0",fontSize:13,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.members.find(m=>m.userId===me.id)?.nick||me.displayName}</div>
+              {myRole&&<div style={{fontSize:11,color:myRole.color}}>{myRole.name}</div>}
+            </div>
+            <div style={{display:"flex",gap:4}}>
+              <button title="Invite People" onClick={()=>setSModal("invite")} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:16,padding:"3px"}}>🔗</button>
+              <button title="Leave Server" onClick={()=>{if(!isOwner(s))leaveSrv(s.id);else showT("Transfer ownership before leaving.","warn");}} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:16,padding:"3px"}}>🚪</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main chat area */}
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {/* Channel header */}
+          <div style={{padding:"0 14px",height:50,background:"#0d1017",borderBottom:"1px solid #1a1f2e",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+            {mob&&<button onClick={()=>setSrvSidebar(p=>!p)} style={{background:"none",border:"none",color:"#6b7299",fontSize:20,cursor:"pointer",padding:"4px 6px"}}>☰</button>}
+            <button onClick={()=>setView("dashboard")} title="Dashboard" style={{background:"none",border:"none",color:"#6b7299",fontSize:18,cursor:"pointer",padding:"4px 6px",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🏠</button>
+            {ch&&<><span style={{color:"#4b5273",fontSize:16}}>{ch.type==="voice"?"🔊":"#"}</span><span style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#e8eaf0",fontSize:15}}>{ch.name}</span></>}
+            <div style={{flex:1}}/>
+            {pinnedMsgs.length>0&&<button title="Pinned Messages" onClick={()=>setSrvPanel(p=>p==="pins"?"chat":"pins")} style={{background:srvPanel==="pins"?"#4facfe20":"none",border:"none",color:srvPanel==="pins"?"#4facfe":"#6b7299",cursor:"pointer",fontSize:16,padding:"4px 8px",borderRadius:6}}>📌 {pinnedMsgs.length}</button>}
+            <button title="Members" onClick={()=>setMembOpen(p=>!p)} style={{background:membOpen?"#4facfe20":"none",border:"none",color:membOpen?"#4facfe":"#6b7299",cursor:"pointer",fontSize:16,padding:"4px 8px",borderRadius:6}}>👥</button>
+            {hasPerm(s,"all")&&<><button title="Manage Members" onClick={()=>setSModal("members")} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:16,padding:"4px"}}>⚙</button><button title="Roles" onClick={()=>setSModal("roles")} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:14,padding:"4px"}}>🎭</button><button title="Bans" onClick={()=>setSModal("bans")} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:14,padding:"4px"}}>🚫</button><button title="Invite" onClick={()=>setSModal("invite")} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:14,padding:"4px"}}>🔗</button></>}
+          </div>
+
+          <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+            {/* Messages / Pins panel */}
+            <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+              {!ch&&<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"#3d4460",fontFamily:"Oxanium,monospace",flexDirection:"column",gap:12}}><div style={{fontSize:52}}>👈</div><div style={{fontSize:18,fontWeight:700}}>Select a channel</div></div>}
+              {ch&&srvPanel==="pins"&&<div style={{flex:1,overflowY:"auto",padding:16}}>
+                <div style={{fontFamily:"Oxanium,monospace",fontWeight:700,color:"#6b7299",fontSize:12,letterSpacing:1.5,marginBottom:14}}>PINNED MESSAGES — {pinnedMsgs.length}</div>
+                {pinnedMsgs.length===0?<div style={{color:"#3d4460",textAlign:"center",marginTop:40}}>No pinned messages</div>:pinnedMsgs.map(m=>{const sender=getU(m.from);return(
+                  <div key={m.id} style={{background:"#0e1219",borderRadius:10,padding:"12px 14px",marginBottom:10,border:"1px solid #252a3d",borderLeft:"3px solid #ffa502"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><Av user={sender} size={22}/><span style={{color:"#e8eaf0",fontSize:13,fontWeight:600}}>{sender?.displayName}</span><span style={{color:"#4b5273",fontSize:11}}>{tfmt(m.ts)}</span></div>
+                    <div style={{color:"#a0a8bf",fontSize:14}}>{m.text}</div>
+                  </div>
+                );})}
+              </div>}
+              {ch&&srvPanel==="chat"&&<>
+                <div style={{flex:1,overflowY:"auto",padding:"12px 10px",display:"flex",flexDirection:"column",gap:2}}>
+                  {chMsgs.length===0&&<div style={{textAlign:"center",color:"#3d4460",marginTop:60,fontFamily:"Oxanium,monospace"}}>
+                    <div style={{fontSize:40,marginBottom:10}}>{ch.type==="voice"?"🔊":"#"}</div>
+                    <div style={{fontSize:17,fontWeight:700}}>Welcome to #{ch.name}</div>
+                    <div style={{fontSize:13,marginTop:4}}>This is the beginning of this channel.</div>
+                  </div>}
+                  {chMsgs.map((m,i)=>{
+                    const sender=getU(m.from);const isMe=m.from===me.id;
+                    const showAv=i===0||chMsgs[i-1]?.from!==m.from||m.ts-chMsgs[i-1]?.ts>300000;
+                    const replyMsg=m.reply?chMsgs.find(x=>x.id===m.reply):null;
+                    return(
+                      <div key={m.id} style={{padding:showAv?"8px 10px 2px":"1px 10px",display:"flex",gap:12,borderRadius:6,transition:"background .1s",cursor:"default",position:"relative"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="#0e1219"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+                        onContextMenu={e=>{e.preventDefault();setCtxMenu({x:Math.min(e.clientX,window.innerWidth-180),y:Math.min(e.clientY,window.innerHeight-220),id:m.id,from:m.from,type:"msg"});}}>
+                        <div style={{width:40,flexShrink:0,paddingTop:showAv?2:0}}>{showAv?<Av user={sender} size={38}/>:<div style={{width:38}}/>}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          {replyMsg&&<div style={{fontSize:12,color:"#4b5273",marginBottom:4,paddingLeft:8,borderLeft:"2px solid #4b5273",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>↩ {getU(replyMsg.from)?.displayName}: {replyMsg.text}</div>}
+                          {showAv&&<div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:2}}>
+                            <span style={{fontWeight:700,color:srvRole(s,m.from)?.color||"#e8eaf0",fontSize:14,fontFamily:"Oxanium,monospace"}}>{sender?.displayName}</span>
+                            {s.members.find(mm=>mm.userId===m.from)?.nick&&<span style={{fontSize:11,color:"#4b5273"}}>(nick: {s.members.find(mm=>mm.userId===m.from).nick})</span>}
+                            {m.pinned&&<span style={{fontSize:10,color:"#ffa502"}}>📌</span>}
+                            <span style={{fontSize:11,color:"#4b5273"}}>{tfmt(m.ts)}</span>
+                          </div>}
+                          <div style={{color:"#c8ccd6",fontSize:14,lineHeight:1.55,wordBreak:"break-word"}}>{m.text}</div>
+                          {m.reactions.filter(r=>r.users.length>0).length>0&&<div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
+                            {m.reactions.filter(r=>r.users.length>0).map((r,ri)=>(
+                              <div key={ri} onClick={()=>toggleReact(key,m.id,r.emoji)} style={{background:r.users.includes(me.id)?"#4facfe25":"#1e2535",border:`1px solid ${r.users.includes(me.id)?"#4facfe50":"#252a3d"}`,borderRadius:12,padding:"2px 8px",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4,color:r.users.includes(me.id)?"#4facfe":"#9a9db0",transition:"all .15s"}}>
+                                {r.emoji}<span style={{fontSize:12,fontWeight:600}}>{r.users.length}</span>
+                              </div>
+                            ))}
+                            <div onClick={()=>{const emojis=["👍","❤️","😂","🔥","😮","👀"];const e=emojis[Math.floor(Math.random()*emojis.length)];toggleReact(key,m.id,e);}} style={{background:"#1e2535",border:"1px solid #252a3d",borderRadius:12,padding:"2px 8px",fontSize:12,cursor:"pointer",color:"#6b7299",transition:"all .15s"}} title="Add reaction">+ 😊</div>
+                          </div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={sMsgEnd}/>
+                </div>
+                {/* Reply bar */}
+                {sReplyTo&&<div style={{padding:"6px 12px",background:"#0d1017",borderTop:"1px solid #1a1f2e",display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{flex:1,fontSize:12,color:"#6b7299",borderLeft:"2px solid #4facfe",paddingLeft:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>↩ {chMsgs.find(m=>m.id===sReplyTo)?.text}</div>
+                  <button onClick={()=>setSReplyTo(null)} style={{background:"none",border:"none",color:"#6b7299",cursor:"pointer",fontSize:16}}>×</button>
+                </div>}
+                {/* Input */}
+                <div style={{padding:"10px 14px",background:"#0d1017",borderTop:"1px solid #1a1f2e",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                  <input value={sInput} onChange={e=>setSInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&sendSMsg()}
+                    placeholder={ch.ro&&!hasPerm(s,"all")?`#${ch.name} is read-only`:`Message #${ch.name}`}
+                    disabled={ch.ro&&!hasPerm(s,"all")}
+                    style={{flex:1,background:"#1a1f2e",border:"1px solid #252a3d",borderRadius:10,padding:"10px 14px",color:"#e8eaf0",fontSize:14,fontFamily:"Jost,sans-serif",outline:"none",transition:"border-color .2s",opacity:ch.ro&&!hasPerm(s,"all")?.5:1}}
+                    onFocus={e=>e.target.style.borderColor="#4facfe"} onBlur={e=>e.target.style.borderColor="#252a3d"}/>
+                  <button onClick={sendSMsg} style={{width:40,height:40,borderRadius:"50%",background:"linear-gradient(135deg,#4facfe,#00f2fe)",border:"none",cursor:"pointer",fontSize:17,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>↑</button>
+                </div>
+              </>}
+            </div>
+
+            {/* Member list */}
+            {membOpen&&!mob&&<div style={{width:220,background:"#0d1017",borderLeft:"1px solid #1a1f2e",overflowY:"auto",flexShrink:0}}>
+              <div style={{padding:"14px 12px 8px",fontFamily:"Oxanium,monospace",fontSize:11,color:"#4b5273",letterSpacing:1.5}}>MEMBERS — {s.members.length}</div>
+              {s.roles.map(role=>{const mems=s.members.filter(m=>m.roleId===role.id);if(!mems.length)return null;return(
+                <div key={role.id}>
+                  <div style={{padding:"6px 12px 4px",fontSize:11,color:role.color,fontFamily:"Oxanium,monospace",fontWeight:700,letterSpacing:1}}>{role.name.toUpperCase()} — {mems.length}</div>
+                  {mems.map(m=>{const u=getU(m.userId);return(
+                    <div key={m.userId} style={{padding:"5px 12px",display:"flex",alignItems:"center",gap:8,borderRadius:4,cursor:"pointer",transition:"background .1s"}} onMouseEnter={e=>e.currentTarget.style.background="#161c28"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <div style={{position:"relative",flexShrink:0}}><Av user={u} size={28}/><div style={{position:"absolute",bottom:0,right:0,width:8,height:8,borderRadius:"50%",background:u?.online?"#2ed573":"#4b5273",border:"2px solid #0d1017"}}/></div>
+                      <div style={{flex:1,minWidth:0}}><div style={{color:"#c8ccd6",fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.nick||u?.displayName}</div></div>
+                    </div>
+                  );})}
+                </div>
+              );})}
+            </div>}
+          </div>
+        </div>
+
+        {srvModalJSX}
+        {toast&&<Toast {...toast}/>}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(TeCode));
+</script>
+</body>
+</html>
